@@ -1,12 +1,14 @@
 //
 //  PresetManager.swift
-//  Blankie
+//  SereneScapes
 //
 //  Created by Cody Bromley on 1/1/25.
+//  Converted to iOS by SereneScapes team.
 //
 
 import Combine
 import SwiftUI
+import UIKit
 
 class PresetManager: ObservableObject {
   private var isInitializing = true
@@ -33,7 +35,7 @@ class PresetManager: ObservableObject {
       .debounce(for: .milliseconds(100), scheduler: RunLoop.main)
       .sink { [weak self] _ in
         Task { @MainActor in
-          self?.updateCurrentPresetState()  // Remove await
+          self?.updateCurrentPresetState()
         }
       }
       .store(in: &cancellables)
@@ -48,7 +50,7 @@ class PresetManager: ObservableObject {
   private func setupObservers() {
     // Observe audio manager for state changes that might affect presets
     NotificationCenter.default
-      .publisher(for: NSApplication.willTerminateNotification)
+      .publisher(for: UIApplication.willTerminateNotification)
       .sink { [weak self] _ in
         self?.saveState()
       }

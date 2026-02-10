@@ -1,8 +1,9 @@
 //
 //  GlobalSettings.swift
-//  Blankie
+//  SereneScapes
 //
 //  Created by Cody Bromley on 1/1/25.
+//  Converted to iOS by SereneScapes team.
 //
 
 import Combine
@@ -63,9 +64,8 @@ class GlobalSettings: ObservableObject {
       language = savedLanguage
     }
 
-    // After initialization, setup observers and update appearance
+    // After initialization, setup observers
     setupObservers()
-    updateAppAppearance()
     logCurrentSettings()
   }
 
@@ -76,7 +76,7 @@ class GlobalSettings: ObservableObject {
   private func setupObservers() {
     _appearance.projectedValue.sink { [weak self] newValue in
       UserDefaults.standard.setValue(newValue.rawValue, forKey: UserDefaultsKeys.appearance)
-      self?.updateAppAppearance()
+      // On iOS, appearance is handled by the system or via .preferredColorScheme modifier
     }.store(in: &observers)
 
     _customAccentColor.projectedValue.sink { newColor in
@@ -94,19 +94,6 @@ class GlobalSettings: ObservableObject {
     _language.projectedValue.sink { newValue in
       UserDefaults.standard.setValue(newValue.code, forKey: UserDefaultsKeys.language)
     }.store(in: &observers)
-  }
-
-  private func updateAppAppearance() {
-    DispatchQueue.main.async {
-      switch self.appearance {
-      case .system:
-        NSApp.appearance = nil
-      case .light:
-        NSApp.appearance = NSAppearance(named: .aqua)
-      case .dark:
-        NSApp.appearance = NSAppearance(named: .darkAqua)
-      }
-    }
   }
 
   private func debouncedSaveVolume(_ newVolume: Double) {
@@ -133,7 +120,7 @@ class GlobalSettings: ObservableObject {
   @MainActor
   func setAppearance(_ newAppearance: AppearanceMode) {
     appearance = newAppearance
-    updateAppAppearance()
+    // On iOS, appearance changes are applied via .preferredColorScheme in the view hierarchy
     logCurrentSettings()
   }
 
@@ -173,5 +160,4 @@ class GlobalSettings: ObservableObject {
     print("  - Language: \(language.code)")
     print("  - Available Languages: \(availableLanguages.map { $0.code }.joined(separator: ", "))")
   }
-
 }

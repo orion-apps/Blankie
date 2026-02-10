@@ -1,14 +1,16 @@
 //
 //  AudioManager.swift
-//  Blankie
+//  SereneScapes
 //
 //  Created by Cody Bromley on 12/30/24.
+//  Converted to iOS by SereneScapes team.
 //
 
 import AVFoundation
 import Combine
 import MediaPlayer
 import SwiftUI
+import UIKit
 
 class AudioManager: ObservableObject {
   private var cancellables = Set<AnyCancellable>()
@@ -24,6 +26,7 @@ class AudioManager: ObservableObject {
 
   private init() {
     print("🎵 AudioManager: Initializing")
+    setupAudioSession()
     loadSounds()
     loadSavedState()
     setupNowPlaying()
@@ -62,6 +65,17 @@ class AudioManager: ObservableObject {
     }
   }
 
+  private func setupAudioSession() {
+    do {
+      let audioSession = AVAudioSession.sharedInstance()
+      try audioSession.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+      try audioSession.setActive(true)
+      print("🎵 AudioManager: Audio session configured for background playback")
+    } catch {
+      print("❌ AudioManager: Failed to setup audio session: \(error)")
+    }
+  }
+
   private func setupSoundObservers() {
     // Clear any existing observers
     cancellables.removeAll()
@@ -78,6 +92,7 @@ class AudioManager: ObservableObject {
         .store(in: &cancellables)
     }
   }
+
   func setPlaybackState(_ playing: Bool, forceUpdate: Bool = false) {
     guard !isInitializing || forceUpdate else {
       print("🎵 AudioManager: Ignoring setPlaybackState during initialization")
@@ -103,6 +118,7 @@ class AudioManager: ObservableObject {
       }
     }
   }
+
   private func loadSounds() {
     print("🎵 AudioManager: Loading sounds from JSON")
     let bundlePath = Bundle.main.bundlePath
@@ -221,14 +237,13 @@ class AudioManager: ObservableObject {
   private func setupNowPlaying() {
     print("🎵 AudioManager: Setting up Now Playing info")
     nowPlayingInfo[MPMediaItemPropertyTitle] = "Ambient Sounds"
-    nowPlayingInfo[MPMediaItemPropertyArtist] = "Blankie"
+    nowPlayingInfo[MPMediaItemPropertyArtist] = "SereneScapes"
 
     if let url = Bundle.main.url(forResource: "NowPlaying", withExtension: "png"),
-      let image = NSImage(contentsOf: url),
-      let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+      let image = UIImage(contentsOfFile: url.path)
     {
       let artwork = MPMediaItemArtwork(boundsSize: image.size) { size in
-        NSImage(cgImage: cgImage, size: size)
+        return image
       }
       nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
     }
@@ -254,15 +269,14 @@ class AudioManager: ObservableObject {
     print("🎵 AudioManager: Updating Now Playing info with title: \(displayTitle)")
 
     nowPlayingInfo[MPMediaItemPropertyTitle] = displayTitle
-    nowPlayingInfo[MPMediaItemPropertyArtist] = "Blankie"
+    nowPlayingInfo[MPMediaItemPropertyArtist] = "SereneScapes"
     nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isGloballyPlaying ? 1.0 : 0.0
 
     if let url = Bundle.main.url(forResource: "NowPlaying", withExtension: "png"),
-      let image = NSImage(contentsOf: url),
-      let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+      let image = UIImage(contentsOfFile: url.path)
     {
       let artwork = MPMediaItemArtwork(boundsSize: image.size) { size in
-        NSImage(cgImage: cgImage, size: size)
+        return image
       }
       nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
     }
@@ -295,13 +309,14 @@ class AudioManager: ObservableObject {
 
   private func setupNotificationObservers() {
     NotificationCenter.default.addObserver(
-      forName: NSApplication.willTerminateNotification,
+      forName: UIApplication.willTerminateNotification,
       object: nil,
       queue: .main
     ) { [weak self] _ in
       self?.handleAppTermination()
     }
   }
+
   private func handleAppTermination() {
     print("🎵 AudioManager: App is terminating, cleaning up")
     cleanup()
@@ -312,6 +327,7 @@ class AudioManager: ObservableObject {
     MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     print("🎵 AudioManager: Cleanup complete")
   }
+
   func pauseAll() {
     print("🎵 AudioManager: Pausing all sounds")
     print("  - Current global play state: \(isGloballyPlaying)")
@@ -324,6 +340,7 @@ class AudioManager: ObservableObject {
     }
     print("🎵 AudioManager: Pause all complete")
   }
+
   func saveState() {
     let state = sounds.map { sound in
       [
@@ -335,6 +352,7 @@ class AudioManager: ObservableObject {
     }
     UserDefaults.standard.set(state, forKey: "soundState")
   }
+
   /// Toggles the playback state of all selected sounds
   @MainActor func togglePlayback() {
     print("🎵 AudioManager: Toggling playback")

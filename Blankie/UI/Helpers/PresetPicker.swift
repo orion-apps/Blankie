@@ -1,8 +1,9 @@
 //
 //  PresetPicker.swift
-//  Blankie
+//  SereneScapes
 //
 //  Created by Cody Bromley on 1/2/25.
+//  Converted to iOS by SereneScapes team.
 //
 
 import SwiftUI
@@ -47,9 +48,7 @@ struct PresetPicker: View {
             Divider()
 
             Button(action: {
-              // Count existing custom presets
               let customPresetCount = presetManager.presets.filter { !$0.isDefault }.count
-              // Create name like "Preset 1", "Preset 2", etc.
               let newPresetName = String(
                 format: String(localized: "Preset %d", comment: "New preset name format"),
                 customPresetCount + 1
@@ -90,10 +89,8 @@ private struct PresetList: View {
       if presetManager.isLoading {
         PresetLoadingView()
       } else if !presetManager.hasCustomPresets {
-        // Show empty state only if there are zero *custom* presets
         PresetEmptyState(showingNewPresetSheet: $isPresented)
       } else {
-        // Custom presets
         ForEach(presetManager.presets.filter { !$0.isDefault }) { preset in
           PresetRow(
             preset: preset, isPresented: $isPresented, selectedPresetForEdit: $selectedPresetForEdit
@@ -104,7 +101,7 @@ private struct PresetList: View {
         }
       }
     }
-    .background(Color(NSColor.controlBackgroundColor))
+    .background(Color(.secondarySystemBackground))
     .alert(
       "Error", isPresented: .constant(error != nil)
     ) {
@@ -150,7 +147,6 @@ private struct PresetRow: View {
       .buttonStyle(.plain)
       .frame(maxWidth: .infinity)
 
-      // Only show edit and delete buttons for non-default presets
       if !preset.isDefault {
         Button(action: {
           selectedPresetForEdit = preset
@@ -159,7 +155,6 @@ private struct PresetRow: View {
             .foregroundStyle(.secondary)
         }
         .buttonStyle(.plain)
-        .help("Rename Preset")
 
         Button(action: {
           presetManager.deletePreset(preset)
@@ -168,7 +163,6 @@ private struct PresetRow: View {
             .foregroundStyle(.secondary)
         }
         .buttonStyle(.plain)
-        .help("Delete Preset")
       }
     }
     .padding(.horizontal, 12)
