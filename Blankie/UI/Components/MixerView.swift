@@ -9,6 +9,7 @@ struct MixerView: View {
     @ObservedObject private var audioManager = AudioManager.shared
     @ObservedObject private var globalSettings = GlobalSettings.shared
     @ObservedObject private var presetManager = PresetManager.shared
+    @ObservedObject private var appState = AppState.shared
 
     @Environment(\.dismiss) private var dismiss
 
@@ -22,6 +23,7 @@ struct MixerView: View {
     var body: some View {
         NavigationView {
             List {
+                contentSourceSection
                 masterVolumeSection
                 activeSoundsSection
                 presetsSection
@@ -50,6 +52,27 @@ struct MixerView: View {
     }
 
     // MARK: - Sections
+
+    private var contentSourceSection: some View {
+        Section("Content Source") {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(appState.contentMode == .hybrid ? Color.green : Color.orange)
+                    .frame(width: 8, height: 8)
+
+                Text(appState.contentMode == .hybrid ? "Built-in + Online" : "Built-in Only")
+                Spacer()
+            }
+
+            Text(appState.contentStatusMessage)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Button("Refresh Content Catalog") {
+                Task { await audioManager.refreshRemoteCatalog() }
+            }
+        }
+    }
 
     private var masterVolumeSection: some View {
         Section("Volume") {
