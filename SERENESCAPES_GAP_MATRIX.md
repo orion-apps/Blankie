@@ -17,7 +17,7 @@ _Last updated: 2026-02-24_
 | Ken Burns in single-sound player | Present in SereneScapes | 🚧 Implemented foundation in Blankie player | Validate behavior against SereneScapes timing/feel | High | Tune animation presets + QA on device |
 | Mixer/blends workflow | Studio + saved blends + blend player | Core mixer UI exists | Parity validation incomplete | High | Build parity checklist and close gaps |
 | Library/download UX | Downloaded/available + server workflows | Partial foundations | Progress/management parity gaps | Medium | Align UX and state handling |
-| Built-in fallback mode | Reliable bundled content fallback | Partially implied | Explicit mode/state not surfaced | High | Add built-in only / hybrid mode signaling |
+| Built-in fallback mode | Reliable bundled content fallback | 🚧 Mode/state hooks added (`bundledOnly`/`hybrid`) | Need deeper UX + settings visibility | High | Wire mode state across more views/settings |
 
 ## Immediate Ticket Queue
 1. **GAP-01 (🚧): Player image-pack background foundation**

@@ -40,6 +40,8 @@ struct HomeView: View {
             ZStack(alignment: .bottom) {
                 ScrollView {
                     VStack(spacing: 16) {
+                        contentModeBanner
+
                         // Filter pills
                         filterPills
 
@@ -96,6 +98,22 @@ struct HomeView: View {
                 }
             }
         }
+    }
+
+    private var contentModeBanner: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(appState.contentMode == .hybrid ? Color.green : Color.orange)
+                .frame(width: 8, height: 8)
+
+            Text(appState.contentStatusMessage)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Capsule().fill(.ultraThinMaterial))
+        .padding(.horizontal, 16)
     }
 
     // MARK: - Filter Pills

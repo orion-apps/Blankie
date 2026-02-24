@@ -170,6 +170,12 @@ class AudioManager: ObservableObject {
 
   func ingestRemoteMetadata(_ metadata: [ServerSoundMetadata]) {
     remoteSoundCatalog = metadata
+
+    if metadata.isEmpty {
+      AppState.shared.setContentMode(.bundledOnly, message: "Using built-in sounds")
+    } else {
+      AppState.shared.setContentMode(.hybrid, message: "Using built-in + online catalog")
+    }
   }
 
   func mergedLibraryEntries(bundledData: [SoundData]) -> [SoundLibraryEntry] {
