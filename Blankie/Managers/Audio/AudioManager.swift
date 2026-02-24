@@ -17,6 +17,7 @@ class AudioManager: ObservableObject {
     var onProgress: ((Int, Double) -> Void)?
     var onFinish: ((Int, URL) -> Void)?
     var onError: ((Int, Error?) -> Void)?
+    var onDidFinishEvents: (() -> Void)?
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
                     didWriteData bytesWritten: Int64,
@@ -36,6 +37,10 @@ class AudioManager: ObservableObject {
       if error != nil {
         onError?(task.taskIdentifier, error)
       }
+    }
+
+    func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+      onDidFinishEvents?()
     }
   }
   enum RemoteDownloadState: String, Codable {
@@ -73,6 +78,7 @@ class AudioManager: ObservableObject {
   private let remoteDownloadStatusKey = "remoteDownloadStatus"
   private let remoteDownloadDelegate = RemoteDownloadDelegate()
   private var remoteTaskToID: [Int: String] = [:]
+  private var backgroundSessionCompletionHandler: (() -> Void)?
   private lazy var backgroundDownloadSession: URLSession = {
     let config = URLSessionConfiguration.background(withIdentifier: "com.orioninternetservices.blankie.remote-downloads")
     config.sessionSendsLaunchEvents = true
@@ -395,6 +401,16 @@ class AudioManager: ObservableObject {
     remoteDownloadStatus = decoded
   }
 
+  func handleBackgroundSessionEvents(identifier: String, completionHandler: @escaping () -> Void) {
+    guard identifier == "com.orioninternetservices.blankie.remote-downloads" else {
+      completionHandler()
+      return
+    }
+
+    backgroundSessionCompletionHandler = completionHandler
+    AppState.shared.appendTelemetry("[AudioManager] Received background session wake: \(identifier)", level: .info)
+  }
+
   private func setupRemoteDownloadCallbacks() {
     remoteDownloadDelegate.onProgress = { [weak self] taskID, progress in
       guard let self, let remoteID = self.remoteTaskToID[taskID] else { return }
@@ -434,6 +450,14 @@ class AudioManager: ObservableObject {
         self.updateRemoteDownload(id: remoteID, state: .failed, progress: 0)
         self.remoteTaskToID[taskID] = nil
         AppState.shared.appendTelemetry("[AudioManager] Background download failed for \(remoteID): \(error?.localizedDescription ?? "unknown")", level: .warning)
+      }
+    }
+
+    remoteDownloadDelegate.onDidFinishEvents = { [weak self] in
+      guard let self else { return }
+      Task { @MainActor in
+        self.backgroundSessionCompletionHandler?()
+        self.backgroundSessionCompletionHandler = nil
       }
     }
   }

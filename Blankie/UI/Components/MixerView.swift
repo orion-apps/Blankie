@@ -43,6 +43,7 @@ struct MixerView: View {
                 if studioMode == .mixer {
                     masterVolumeSection
                     activeSoundsSection
+                    downloadedRemoteSection
                     blendWorkflowSection
                     timerSection
                 } else {
@@ -207,6 +208,42 @@ struct MixerView: View {
             Text("Active Sounds")
         } footer: {
             Text(singleSoloMode ? "Soloing one sound clears solo on others." : "Multiple sounds can be soloed together.")
+        }
+    }
+
+    private var downloadedRemoteSection: some View {
+        Section("Downloaded Remote Tracks") {
+            let downloaded = audioManager.remoteSoundCatalog.filter {
+                audioManager.downloadStatus(for: $0.id).state == .completed
+            }
+
+            if downloaded.isEmpty {
+                Text("No downloaded remote tracks")
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+            } else {
+                ForEach(downloaded, id: \.id) { item in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.title)
+                            Text(item.sourceServerID)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button(audioManager.currentlyPlayingRemoteID == item.id ? "Stop" : "Play") {
+                            Task { @MainActor in
+                                if audioManager.currentlyPlayingRemoteID == item.id {
+                                    audioManager.stopDownloadedRemotePlayback()
+                                } else {
+                                    audioManager.playDownloadedRemote(id: item.id)
+                                }
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+            }
         }
     }
 
