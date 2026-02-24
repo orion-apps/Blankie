@@ -14,6 +14,7 @@ struct MixerView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var showSavePreset = false
+    @State private var showSleepTimer = false
     @State private var presetName = ""
     @State private var workflowMessage: String?
 
@@ -57,6 +58,9 @@ struct MixerView: View {
                 Button("OK", role: .cancel) { workflowMessage = nil }
             } message: {
                 Text(workflowMessage ?? "")
+            }
+            .sheet(isPresented: $showSleepTimer) {
+                SleepTimerSheet()
             }
         }
     }
@@ -188,17 +192,12 @@ struct MixerView: View {
     }
 
     private var timerSection: some View {
-        Section {
+        Section("Timer") {
             Button {
-                // Placeholder
+                showSleepTimer = true
             } label: {
                 Label("Sleep Timer", systemImage: "moon.zzz")
             }
-            .disabled(true)
-        } header: {
-            Text("Timer")
-        } footer: {
-            Text("Coming soon")
         }
     }
 }
