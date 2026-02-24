@@ -20,6 +20,6 @@ _Last updated: 2026-02-24_
 | Built-in fallback mode | Reliable bundled content fallback | ✅ Mode/state surfaced across Home, Player, Mixer, and Settings | Minor copy polish only | High | Closed (monitor during QA) |
 
 ## Immediate Ticket Queue
-1. **GAP-03 (🚧): Manifest hardening (telemetry depth + cache-policy tuning)**
-2. **GAP-05: Mixer/blend parity validation + missing behavior patches**
-3. **GAP-06: Library/download UX parity (progress/state handling)**
+1. **QA-01 (next): Device parity QA pass** (player visuals, mixer/blends, library/download background behavior)
+2. **GAP-03 (🚧): Manifest hardening closeout** (telemetry depth + cache-policy tuning)
+3. **UX-Polish:** Remote metadata presentation refinements in Library
