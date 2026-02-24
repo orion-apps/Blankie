@@ -48,8 +48,9 @@ Validate Blankie mixer/blend behavior against SereneScapes expectations and clos
 - Added tests for unique naming + overwrite-current behavior
 - Enabled Sleep Timer entry in Mixer (removed placeholder)
 
-## Next GAP-05 patch targets
-1. Add pan control in Blankie `SoundMixerRow`
-2. Add explicit mute/solo controls in Blankie mixer rows
-3. Add blend edit/rename affordance in mixer list
-4. Add missing-sound warning path when applying saved presets
+## Remaining GAP-05 targets before closeout
+1. Blend playback from blend cards / dedicated blend player parity
+2. Autosave semantics parity while editing loaded blend
+3. Bundled vs user blend distinction parity
+4. Studio-like dedicated mixer workspace (tabs/layout) parity
+5. Error/success messaging parity polish for blend operations
