@@ -203,14 +203,14 @@ struct MixerView: View {
                     .foregroundStyle(.orange)
             }
 
-            if let current = presetManager.currentPreset, !current.isDefault {
+            if let current = presetManager.currentPreset {
                 HStack {
-                    Image(systemName: "music.note.list")
+                    Image(systemName: current.isDefault ? "shippingbox.fill" : "music.note.list")
                         .foregroundStyle(.secondary)
                     Text(current.name)
                         .font(.subheadline)
                     Spacer()
-                    Text("Current")
+                    Text(current.isDefault ? "Built-in • Current" : "User • Current")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -223,8 +223,25 @@ struct MixerView: View {
             }
             .disabled(activeSounds.isEmpty)
 
-            ForEach(presetManager.presets.filter { !$0.isDefault }) { preset in
-                presetRow(preset)
+            if let builtInPreset = presetManager.presets.first(where: { $0.isDefault }) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Built-in")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    presetRow(builtInPreset)
+                }
+            }
+
+            let userPresets = presetManager.presets.filter { !$0.isDefault }
+            if !userPresets.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("User Presets")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    ForEach(userPresets) { preset in
+                        presetRow(preset)
+                    }
+                }
             }
         }
     }
@@ -237,6 +254,9 @@ struct MixerView: View {
                 Text(preset.name)
                     .foregroundStyle(.primary)
                 Spacer()
+                Text(preset.isDefault ? "Built-in" : "User")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                 if preset.id == presetManager.currentPreset?.id {
                     Image(systemName: "checkmark")
                         .foregroundStyle(Color.accentColor)
@@ -244,13 +264,15 @@ struct MixerView: View {
             }
         }
         .contextMenu {
-            Button("Rename") {
-                presetToRename = preset
-                renamePresetName = preset.name
-                showRenamePreset = true
-            }
-            Button("Delete", role: .destructive) {
-                presetManager.deletePreset(preset)
+            if !preset.isDefault {
+                Button("Rename") {
+                    presetToRename = preset
+                    renamePresetName = preset.name
+                    showRenamePreset = true
+                }
+                Button("Delete", role: .destructive) {
+                    presetManager.deletePreset(preset)
+                }
             }
         }
     }

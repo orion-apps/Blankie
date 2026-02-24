@@ -31,7 +31,7 @@ Validate Blankie mixer/blend behavior against SereneScapes expectations and clos
 
 ### D) Persistence and resilience
 - [x] Basic preset persistence
-- [ ] Bundled vs user blend distinction parity
+- [x] Bundled vs user blend distinction parity
 - [x] Edit blend metadata/name in mixer context parity
 - [x] Defensive handling for missing/deleted sounds in saved blend
 
@@ -50,7 +50,5 @@ Validate Blankie mixer/blend behavior against SereneScapes expectations and clos
 
 ## Remaining GAP-05 targets before closeout
 1. Blend playback from blend cards / dedicated blend player parity
-2. Autosave semantics parity while editing loaded blend
-3. Bundled vs user blend distinction parity
-4. Studio-like dedicated mixer workspace (tabs/layout) parity
-5. Error/success messaging parity polish for blend operations
+2. Studio-like dedicated mixer workspace (tabs/layout) parity
+3. Error/success messaging parity polish for blend operations
