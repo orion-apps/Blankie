@@ -24,6 +24,7 @@ class AudioManager: ObservableObject {
   private let commandCenter = MPRemoteCommandCenter.shared()
   private var nowPlayingInfo: [String: Any] = [:]
   private var isInitializing = true
+  private let contentManager = ContentManager()
 
   private init() {
     print("🎵 AudioManager: Initializing")
@@ -41,6 +42,10 @@ class AudioManager: ObservableObject {
       try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1 seconds
 
       self.isInitializing = false
+
+      // Default to bundled mode until remote content check completes.
+      AppState.shared.setContentMode(.bundledOnly, message: "Using built-in sounds")
+      await self.refreshRemoteCatalog()
 
       if !GlobalSettings.shared.alwaysStartPaused {
         let hasSelectedSounds = self.sounds.contains { $0.isSelected }
@@ -175,6 +180,27 @@ class AudioManager: ObservableObject {
       AppState.shared.setContentMode(.bundledOnly, message: "Using built-in sounds")
     } else {
       AppState.shared.setContentMode(.hybrid, message: "Using built-in + online catalog")
+    }
+  }
+
+  func refreshRemoteCatalog() async {
+    do {
+      let result = try await contentManager.fetchManifest()
+      ingestRemoteMetadata(result.remoteSoundCatalog)
+
+      if result.source == .cache {
+        AppState.shared.appendTelemetry("[AudioManager] Loaded remote catalog from cache", level: .info)
+      } else {
+        AppState.shared.appendTelemetry("[AudioManager] Loaded remote catalog from network", level: .info)
+      }
+
+      if result.warning == .staleCacheUsed {
+        AppState.shared.appendTelemetry("[AudioManager] Using stale cached catalog fallback", level: .warning)
+      }
+    } catch {
+      ingestRemoteMetadata([])
+      AppState.shared.setContentMode(.bundledOnly, message: "Online catalog unavailable — using built-in sounds")
+      AppState.shared.appendTelemetry("[AudioManager] Remote catalog refresh failed: \(error)", level: .warning)
     }
   }
 

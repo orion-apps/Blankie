@@ -10,6 +10,7 @@ import SwiftUI
 struct PlayerView: View {
     @ObservedObject private var audioManager = AudioManager.shared
     @ObservedObject private var globalSettings = GlobalSettings.shared
+    @ObservedObject private var appState = AppState.shared
     @ObservedObject private var sleepTimer = SleepTimer.shared
 
     @Environment(\.dismiss) private var dismiss
@@ -181,6 +182,10 @@ struct PlayerView: View {
                 Text("\(activeSounds.count) sound\(activeSounds.count == 1 ? "" : "s")")
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.7))
+
+                Text(appState.contentMode == .hybrid ? "Built-in + Online Catalog" : "Built-in Sounds")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.72))
             }
 
             Spacer()

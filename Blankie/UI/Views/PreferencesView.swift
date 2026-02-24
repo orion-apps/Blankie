@@ -13,6 +13,7 @@ import UIKit
 struct PreferencesView: View {
   @ObservedObject private var globalSettings = GlobalSettings.shared
   @ObservedObject private var appState = AppState.shared
+  @ObservedObject private var audioManager = AudioManager.shared
   @State private var showingRestartAlert = false
   @Environment(\.dismiss) private var dismiss
   private let colorsPerRow = 6
@@ -163,6 +164,10 @@ struct PreferencesView: View {
           Text(appState.contentStatusMessage)
             .font(.subheadline)
             .foregroundStyle(.secondary)
+
+          Button("Refresh Content Catalog") {
+            Task { await audioManager.refreshRemoteCatalog() }
+          }
 
           if appState.contentTelemetry.isEmpty {
             Text("No recent content events")
