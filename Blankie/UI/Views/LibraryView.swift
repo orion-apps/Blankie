@@ -126,7 +126,7 @@ struct LibraryView: View {
                                     Button(audioManager.currentlyPlayingRemoteID == item.id ? "Stop" : "Play") {
                                         Task { @MainActor in
                                             if audioManager.currentlyPlayingRemoteID == item.id {
-                                                audioManager.stopDownloadedRemotePlayback()
+                                                audioManager.stopDownloadedRemotePlayback(id: item.id)
                                             } else {
                                                 audioManager.playDownloadedRemote(id: item.id)
                                             }

@@ -223,24 +223,36 @@ struct MixerView: View {
                     .font(.caption)
             } else {
                 ForEach(downloaded, id: \.id) { item in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.title)
-                            Text(item.sourceServerID)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Button(audioManager.currentlyPlayingRemoteID == item.id ? "Stop" : "Play") {
-                            Task { @MainActor in
-                                if audioManager.currentlyPlayingRemoteID == item.id {
-                                    audioManager.stopDownloadedRemotePlayback()
-                                } else {
-                                    audioManager.playDownloadedRemote(id: item.id)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.title)
+                                Text(item.sourceServerID)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button(audioManager.currentlyPlayingRemoteID == item.id ? "Stop" : "Play") {
+                                Task { @MainActor in
+                                    if audioManager.currentlyPlayingRemoteID == item.id {
+                                        audioManager.stopDownloadedRemotePlayback(id: item.id)
+                                    } else {
+                                        audioManager.playDownloadedRemote(id: item.id)
+                                    }
                                 }
                             }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
+
+                        Toggle("Include in blend", isOn: Binding(
+                            get: { audioManager.selectedRemoteTrackIDs.contains(item.id) },
+                            set: { newValue in
+                                Task { @MainActor in
+                                    audioManager.setRemoteTrackSelected(id: item.id, isSelected: newValue)
+                                }
+                            }
+                        ))
+                        .font(.caption)
                     }
                 }
             }

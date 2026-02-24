@@ -68,6 +68,7 @@ class AudioManager: ObservableObject {
   @Published private(set) var lastCatalogSourceLabel: String = "none"
   @Published private(set) var remoteDownloadStatus: [String: RemoteDownloadStatus] = [:]
   @Published private(set) var currentlyPlayingRemoteID: String?
+  @Published private(set) var selectedRemoteTrackIDs: Set<String> = []
 
   private let commandCenter = MPRemoteCommandCenter.shared()
   private var nowPlayingInfo: [String: Any] = [:]
@@ -75,6 +76,7 @@ class AudioManager: ObservableObject {
   private let contentManager = ContentManager()
   private var remoteDownloadTasks: [String: Task<Void, Never>] = [:]
   private var remotePreviewPlayer: AVAudioPlayer?
+  private var remotePlayers: [String: AVAudioPlayer] = [:]
   private let remoteDownloadStatusKey = "remoteDownloadStatus"
   private let remoteDownloadDelegate = RemoteDownloadDelegate()
   private var remoteTaskToID: [Int: String] = [:]
@@ -315,6 +317,38 @@ class AudioManager: ObservableObject {
   }
 
   @MainActor
+  func setRemoteTrackSelected(id: String, isSelected: Bool) {
+    if isSelected {
+      selectedRemoteTrackIDs.insert(id)
+      playDownloadedRemote(id: id)
+    } else {
+      selectedRemoteTrackIDs.remove(id)
+      stopDownloadedRemotePlayback(id: id)
+    }
+  }
+
+  @MainActor
+  func applyRemotePresetStates(_ states: [RemotePresetState]) async -> [String] {
+    let targetSelected = Set(states.filter { $0.isSelected }.map { $0.remoteID })
+    let availableIDs = Set(remoteSoundCatalog.map { $0.id })
+
+    let missing = Array(targetSelected.subtracting(availableIDs))
+
+    // Stop remote tracks not selected by this preset.
+    for id in selectedRemoteTrackIDs.subtracting(targetSelected) {
+      stopDownloadedRemotePlayback(id: id)
+    }
+
+    selectedRemoteTrackIDs = targetSelected.subtracting(Set(missing))
+
+    for id in selectedRemoteTrackIDs {
+      playDownloadedRemote(id: id)
+    }
+
+    return missing
+  }
+
+  @MainActor
   func playDownloadedRemote(id: String) {
     guard let remote = remoteSoundCatalog.first(where: { $0.id == id }) else { return }
     let fileURL = localFileURL(for: remote)
@@ -328,11 +362,14 @@ class AudioManager: ObservableObject {
       pauseAll()
       isGloballyPlaying = false
 
-      remotePreviewPlayer = try AVAudioPlayer(contentsOf: fileURL)
-      remotePreviewPlayer?.numberOfLoops = -1
-      remotePreviewPlayer?.volume = Float(GlobalSettings.shared.volume)
-      remotePreviewPlayer?.prepareToPlay()
-      remotePreviewPlayer?.play()
+      let player = try AVAudioPlayer(contentsOf: fileURL)
+      player.numberOfLoops = -1
+      player.volume = Float(GlobalSettings.shared.volume)
+      player.prepareToPlay()
+      player.play()
+      remotePlayers[id] = player
+
+      remotePreviewPlayer = player
       currentlyPlayingRemoteID = id
       AppState.shared.appendTelemetry("[AudioManager] Playing downloaded remote track: \(remote.title)", level: .info)
     } catch {
@@ -341,10 +378,27 @@ class AudioManager: ObservableObject {
   }
 
   @MainActor
-  func stopDownloadedRemotePlayback() {
+  func stopDownloadedRemotePlayback(id: String? = nil) {
+    if let id {
+      let targetPlayer = remotePlayers[id]
+      targetPlayer?.stop()
+      remotePlayers[id] = nil
+      selectedRemoteTrackIDs.remove(id)
+      if currentlyPlayingRemoteID == id {
+        currentlyPlayingRemoteID = remotePlayers.keys.first
+      }
+      if let targetPlayer, remotePreviewPlayer === targetPlayer {
+        remotePreviewPlayer = nil
+      }
+      return
+    }
+
+    remotePlayers.values.forEach { $0.stop() }
+    remotePlayers.removeAll()
     remotePreviewPlayer?.stop()
     remotePreviewPlayer = nil
     currentlyPlayingRemoteID = nil
+    selectedRemoteTrackIDs.removeAll()
   }
 
   @MainActor
@@ -557,6 +611,12 @@ class AudioManager: ObservableObject {
       sound.play()
     }
 
+    for remoteID in selectedRemoteTrackIDs {
+      Task { @MainActor in
+        self.playDownloadedRemote(id: remoteID)
+      }
+    }
+
     // Update Now Playing info with current preset name
     if let currentPreset = PresetManager.shared.currentPreset {
       self.updateNowPlayingInfo(presetName: currentPreset.name)
@@ -767,6 +827,8 @@ class AudioManager: ObservableObject {
 
   private func cleanup() {
     pauseAll()
+    remotePlayers.values.forEach { $0.stop() }
+    remotePlayers.removeAll()
     remotePreviewPlayer?.stop()
     remotePreviewPlayer = nil
     MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
@@ -783,6 +845,9 @@ class AudioManager: ObservableObject {
         sound.pause()
       }
     }
+
+    remotePlayers.values.forEach { $0.pause() }
+
     print("🎵 AudioManager: Pause all complete")
   }
 

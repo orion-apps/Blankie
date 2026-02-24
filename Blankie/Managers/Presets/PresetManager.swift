@@ -175,6 +175,9 @@ class PresetManager: ObservableObject {
     let newStates = AudioManager.shared.sounds.map { sound in
       PresetState(fileName: sound.fileName, isSelected: sound.isSelected, volume: sound.volume)
     }
+    let remoteStates = AudioManager.shared.selectedRemoteTrackIDs.sorted().map {
+      RemotePresetState(remoteID: $0, isSelected: true, volume: 1.0)
+    }
 
     guard let index = presets.firstIndex(where: { $0.id == currentPreset.id }) else {
       return false
@@ -182,6 +185,7 @@ class PresetManager: ObservableObject {
 
     var updatedPreset = presets[index]
     updatedPreset.soundStates = newStates
+    updatedPreset.remoteStates = remoteStates
     presets[index] = updatedPreset
     self.currentPreset = updatedPreset
     savePresets()
@@ -217,11 +221,15 @@ class PresetManager: ObservableObject {
         volume: sound.volume
       )
     }
+    let newRemoteStates = AudioManager.shared.selectedRemoteTrackIDs.sorted().map {
+      RemotePresetState(remoteID: $0, isSelected: true, volume: 1.0)
+    }
 
     // Only update if state has actually changed
-    if preset.soundStates != newStates {
+    if preset.soundStates != newStates || preset.remoteStates != newRemoteStates {
       var updatedPreset = preset
       updatedPreset.soundStates = newStates
+      updatedPreset.remoteStates = newRemoteStates
 
       if let index = presets.firstIndex(where: { $0.id == preset.id }) {
         presets[index] = updatedPreset
@@ -258,8 +266,10 @@ class PresetManager: ObservableObject {
     }
 
     let targetStates = preset.soundStates
+    let targetRemoteStates = preset.remoteStates
     let wasPlaying = AudioManager.shared.isGloballyPlaying
     var missingSoundFiles: [String] = []
+    var missingRemoteIDs: [String] = []
 
     // Update current preset before any audio changes
     currentPreset = preset
@@ -297,13 +307,22 @@ class PresetManager: ObservableObject {
         }
       }
 
+      let remoteMissing = await AudioManager.shared.applyRemotePresetStates(targetRemoteStates)
+      missingRemoteIDs.append(contentsOf: remoteMissing)
+
       // Wait a bit for states to settle
       try? await Task.sleep(nanoseconds: 100_000_000)
 
-      if !missingSoundFiles.isEmpty {
-        let missing = missingSoundFiles.sorted().joined(separator: ", ")
+      if !missingSoundFiles.isEmpty || !missingRemoteIDs.isEmpty {
+        let localMissing = missingSoundFiles.sorted().joined(separator: ", ")
+        let remoteMissing = missingRemoteIDs.sorted().joined(separator: ", ")
+        let parts = [
+          localMissing.isEmpty ? nil : "local: \(localMissing)",
+          remoteMissing.isEmpty ? nil : "remote: \(remoteMissing)"
+        ].compactMap { $0 }
+
         await MainActor.run {
-          self.lastApplyWarning = "Some sounds were unavailable and skipped: \(missing)"
+          self.lastApplyWarning = "Some items were unavailable and skipped (\(parts.joined(separator: " | ")))."
         }
       } else {
         await MainActor.run {
@@ -312,7 +331,7 @@ class PresetManager: ObservableObject {
       }
 
       if wasPlaying || (isInitialLoad && !GlobalSettings.shared.alwaysStartPaused) {
-        if targetStates.contains(where: { $0.isSelected }) {
+        if targetStates.contains(where: { $0.isSelected }) || targetRemoteStates.contains(where: { $0.isSelected }) {
           AudioManager.shared.setGlobalPlaybackState(true)
         }
       }
@@ -404,6 +423,9 @@ class PresetManager: ObservableObject {
           volume: sound.volume
         )
       }
+      updatedPreset.remoteStates = AudioManager.shared.selectedRemoteTrackIDs.sorted().map {
+        RemotePresetState(remoteID: $0, isSelected: true, volume: 1.0)
+      }
       presets[index] = updatedPreset
       self.currentPreset = updatedPreset
 
@@ -468,6 +490,9 @@ class PresetManager: ObservableObject {
           isSelected: sound.isSelected,
           volume: sound.volume
         )
+      },
+      remoteStates: AudioManager.shared.selectedRemoteTrackIDs.sorted().map {
+        RemotePresetState(remoteID: $0, isSelected: true, volume: 1.0)
       },
       isDefault: false
     )
