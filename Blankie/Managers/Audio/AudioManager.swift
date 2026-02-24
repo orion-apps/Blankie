@@ -20,6 +20,8 @@ class AudioManager: ObservableObject {
   @Published var sounds: [Sound] = []
   @Published private(set) var remoteSoundCatalog: [ServerSoundMetadata] = []
   @Published private(set) var isGloballyPlaying: Bool = false
+  @Published private(set) var isRefreshingCatalog: Bool = false
+  @Published private(set) var lastCatalogSourceLabel: String = "none"
 
   private let commandCenter = MPRemoteCommandCenter.shared()
   private var nowPlayingInfo: [String: Any] = [:]
@@ -184,13 +186,22 @@ class AudioManager: ObservableObject {
   }
 
   func refreshRemoteCatalog() async {
+    await MainActor.run { isRefreshingCatalog = true }
+    defer {
+      Task { @MainActor in
+        self.isRefreshingCatalog = false
+      }
+    }
+
     do {
       let result = try await contentManager.fetchManifest()
       ingestRemoteMetadata(result.remoteSoundCatalog)
 
       if result.source == .cache {
+        await MainActor.run { lastCatalogSourceLabel = "cache" }
         AppState.shared.appendTelemetry("[AudioManager] Loaded remote catalog from cache", level: .info)
       } else {
+        await MainActor.run { lastCatalogSourceLabel = "network" }
         AppState.shared.appendTelemetry("[AudioManager] Loaded remote catalog from network", level: .info)
       }
 
@@ -199,6 +210,7 @@ class AudioManager: ObservableObject {
       }
     } catch {
       ingestRemoteMetadata([])
+      await MainActor.run { lastCatalogSourceLabel = "failed" }
       AppState.shared.setContentMode(.bundledOnly, message: "Online catalog unavailable — using built-in sounds")
       AppState.shared.appendTelemetry("[AudioManager] Remote catalog refresh failed: \(error)", level: .warning)
     }

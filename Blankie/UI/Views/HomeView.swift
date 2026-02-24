@@ -13,6 +13,7 @@ struct HomeView: View {
     @State private var showMixer = false
     @State private var showPlayer = false
     @State private var showPreferences = false
+    @State private var showLibrary = false
 
     private let categories = ["All", "Nature", "Weather", "Urban", "Noise"]
 
@@ -70,7 +71,13 @@ struct HomeView: View {
             .animation(.spring(response: 0.4), value: hasActiveSounds)
             .navigationTitle("SereneScapes")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        showLibrary = true
+                    } label: {
+                        Image(systemName: "books.vertical")
+                    }
+
                     Button {
                         showPreferences = true
                     } label: {
@@ -85,6 +92,16 @@ struct HomeView: View {
             }
             .fullScreenCover(isPresented: $showPlayer) {
                 PlayerView()
+            }
+            .sheet(isPresented: $showLibrary) {
+                NavigationView {
+                    LibraryView()
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Done") { showLibrary = false }
+                            }
+                        }
+                }
             }
             .sheet(isPresented: $showPreferences) {
                 NavigationView {

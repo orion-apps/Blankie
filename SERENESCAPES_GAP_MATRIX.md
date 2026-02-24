@@ -16,7 +16,7 @@ _Last updated: 2026-02-24_
 | Image packs in player | Player visuals use image assets/packs | Gradient-based player in Blankie | No image-pack-driven player background parity | Critical | Add image-aware player background path (start now) |
 | Ken Burns in single-sound player | Present in SereneScapes | 🚧 Implemented foundation in Blankie player | Validate behavior against SereneScapes timing/feel | High | Tune animation presets + QA on device |
 | Mixer/blends workflow | Studio + saved blends + blend player | ✅ Added blend workflow controls + rename/delete + pan + mute/solo + per-track play/pause + missing-sound warnings + blend player cards + autosave semantics + studio workspace toggle + messaging polish | Minor UX polish only after device QA | High | Closed (monitor in QA) |
-| Library/download UX | Downloaded/available + server workflows | Partial foundations | Progress/management parity gaps | Medium | Align UX and state handling |
+| Library/download UX | Downloaded/available + server workflows | 🚧 Added initial Library view with catalog source/status, refresh state, built-in vs online sections, and searchable listing | Missing real download queue/progress/remove parity | Medium | Add download task state + actions and progress indicators |
 | Built-in fallback mode | Reliable bundled content fallback | ✅ Mode/state surfaced across Home, Player, Mixer, and Settings | Minor copy polish only | High | Closed (monitor during QA) |
 
 ## Immediate Ticket Queue
