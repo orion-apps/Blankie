@@ -37,12 +37,14 @@ class AudioManager: ObservableObject {
   @Published private(set) var isRefreshingCatalog: Bool = false
   @Published private(set) var lastCatalogSourceLabel: String = "none"
   @Published private(set) var remoteDownloadStatus: [String: RemoteDownloadStatus] = [:]
+  @Published private(set) var currentlyPlayingRemoteID: String?
 
   private let commandCenter = MPRemoteCommandCenter.shared()
   private var nowPlayingInfo: [String: Any] = [:]
   private var isInitializing = true
   private let contentManager = ContentManager()
   private var remoteDownloadTasks: [String: Task<Void, Never>] = [:]
+  private var remotePreviewPlayer: AVAudioPlayer?
   private let remoteDownloadStatusKey = "remoteDownloadStatus"
 
   private init() {
@@ -55,6 +57,7 @@ class AudioManager: ObservableObject {
     setupNotificationObservers()
     setupSoundObservers()
     loadRemoteDownloadStatus()
+    recoverInterruptedDownloads()
 
     // Handle autoplay behavior after a slight delay to ensure proper initialization
     Task { @MainActor in
@@ -292,9 +295,46 @@ class AudioManager: ObservableObject {
   }
 
   @MainActor
+  func playDownloadedRemote(id: String) {
+    guard let remote = remoteSoundCatalog.first(where: { $0.id == id }) else { return }
+    let fileURL = localFileURL(for: remote)
+    guard FileManager.default.fileExists(atPath: fileURL.path) else {
+      AppState.shared.appendTelemetry("[AudioManager] Cannot play remote item; file missing for \(remote.title)", level: .warning)
+      return
+    }
+
+    do {
+      // Pause bundled loop playback while previewing downloaded remote track.
+      pauseAll()
+      isGloballyPlaying = false
+
+      remotePreviewPlayer = try AVAudioPlayer(contentsOf: fileURL)
+      remotePreviewPlayer?.numberOfLoops = -1
+      remotePreviewPlayer?.volume = Float(GlobalSettings.shared.volume)
+      remotePreviewPlayer?.prepareToPlay()
+      remotePreviewPlayer?.play()
+      currentlyPlayingRemoteID = id
+      AppState.shared.appendTelemetry("[AudioManager] Playing downloaded remote track: \(remote.title)", level: .info)
+    } catch {
+      AppState.shared.appendTelemetry("[AudioManager] Failed to play remote track \(remote.title): \(error.localizedDescription)", level: .error)
+    }
+  }
+
+  @MainActor
+  func stopDownloadedRemotePlayback() {
+    remotePreviewPlayer?.stop()
+    remotePreviewPlayer = nil
+    currentlyPlayingRemoteID = nil
+  }
+
+  @MainActor
   func removeRemoteDownload(id: String) {
     remoteDownloadTasks[id]?.cancel()
     remoteDownloadTasks[id] = nil
+
+    if currentlyPlayingRemoteID == id {
+      stopDownloadedRemotePlayback()
+    }
 
     if let remote = remoteSoundCatalog.first(where: { $0.id == id }) {
       try? FileManager.default.removeItem(at: localFileURL(for: remote))
@@ -327,6 +367,22 @@ class AudioManager: ObservableObject {
       return
     }
     remoteDownloadStatus = decoded
+  }
+
+  private func recoverInterruptedDownloads() {
+    let interrupted = remoteDownloadStatus
+      .filter { $0.value.state == .queued || $0.value.state == .downloading }
+      .map { $0.key }
+
+    guard !interrupted.isEmpty else { return }
+
+    AppState.shared.appendTelemetry("[AudioManager] Recovering \(interrupted.count) interrupted downloads", level: .info)
+
+    Task { @MainActor in
+      for id in interrupted {
+        retryRemoteDownload(id: id)
+      }
+    }
   }
 
   private func remoteAudioDirectoryURL() -> URL {
@@ -618,6 +674,8 @@ class AudioManager: ObservableObject {
 
   private func cleanup() {
     pauseAll()
+    remotePreviewPlayer?.stop()
+    remotePreviewPlayer = nil
     MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     print("🎵 AudioManager: Cleanup complete")
   }

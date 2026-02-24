@@ -123,6 +123,17 @@ struct LibraryView: View {
                                     }
                                     .buttonStyle(.borderedProminent)
                                 case .completed:
+                                    Button(audioManager.currentlyPlayingRemoteID == item.id ? "Stop" : "Play") {
+                                        Task { @MainActor in
+                                            if audioManager.currentlyPlayingRemoteID == item.id {
+                                                audioManager.stopDownloadedRemotePlayback()
+                                            } else {
+                                                audioManager.playDownloadedRemote(id: item.id)
+                                            }
+                                        }
+                                    }
+                                    .buttonStyle(.borderedProminent)
+
                                     Button("Remove") {
                                         Task { @MainActor in
                                             audioManager.removeRemoteDownload(id: item.id)
