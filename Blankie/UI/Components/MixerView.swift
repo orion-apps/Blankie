@@ -17,6 +17,7 @@ struct MixerView: View {
     @State private var showSleepTimer = false
     @State private var presetName = ""
     @State private var workflowMessage: String?
+    @AppStorage("mixerSingleSoloMode") private var singleSoloMode = true
 
     private var activeSounds: [Sound] {
         audioManager.sounds.filter { $0.isSelected }
@@ -106,16 +107,29 @@ struct MixerView: View {
     }
 
     private var activeSoundsSection: some View {
-        Section("Active Sounds") {
+        Section {
+            Toggle("Single-solo mode", isOn: $singleSoloMode)
+
+            if activeSounds.contains(where: { $0.isSolo }) {
+                Button("Clear Solo") {
+                    activeSounds.forEach { $0.isSolo = false }
+                }
+                .foregroundStyle(.orange)
+            }
+
             if activeSounds.isEmpty {
                 Text("No sounds selected")
                     .foregroundStyle(.secondary)
                     .font(.subheadline)
             } else {
                 ForEach(activeSounds) { sound in
-                    SoundMixerRow(sound: sound)
+                    SoundMixerRow(sound: sound, singleSoloMode: singleSoloMode)
                 }
             }
+        } header: {
+            Text("Active Sounds")
+        } footer: {
+            Text(singleSoloMode ? "Soloing one sound clears solo on others." : "Multiple sounds can be soloed together.")
         }
     }
 
@@ -205,6 +219,7 @@ struct MixerView: View {
 // MARK: - Sound Mixer Row
 struct SoundMixerRow: View {
     @ObservedObject var sound: Sound
+    let singleSoloMode: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -229,7 +244,9 @@ struct SoundMixerRow: View {
                     if sound.isSolo {
                         sound.isSolo = false
                     } else {
-                        AudioManager.shared.sounds.forEach { $0.isSolo = false }
+                        if singleSoloMode {
+                            AudioManager.shared.sounds.forEach { $0.isSolo = false }
+                        }
                         sound.isSolo = true
                     }
                 } label: {
