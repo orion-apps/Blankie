@@ -13,6 +13,31 @@ import SwiftUI
 import UIKit
 
 class AudioManager: ObservableObject {
+  final class RemoteDownloadDelegate: NSObject, URLSessionDownloadDelegate, URLSessionTaskDelegate {
+    var onProgress: ((Int, Double) -> Void)?
+    var onFinish: ((Int, URL) -> Void)?
+    var onError: ((Int, Error?) -> Void)?
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
+                    didWriteData bytesWritten: Int64,
+                    totalBytesWritten: Int64,
+                    totalBytesExpectedToWrite: Int64) {
+      guard totalBytesExpectedToWrite > 0 else { return }
+      let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+      onProgress?(downloadTask.taskIdentifier, progress)
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
+                    didFinishDownloadingTo location: URL) {
+      onFinish?(downloadTask.taskIdentifier, location)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+      if error != nil {
+        onError?(task.taskIdentifier, error)
+      }
+    }
+  }
   enum RemoteDownloadState: String, Codable {
     case notDownloaded
     case queued
@@ -46,6 +71,14 @@ class AudioManager: ObservableObject {
   private var remoteDownloadTasks: [String: Task<Void, Never>] = [:]
   private var remotePreviewPlayer: AVAudioPlayer?
   private let remoteDownloadStatusKey = "remoteDownloadStatus"
+  private let remoteDownloadDelegate = RemoteDownloadDelegate()
+  private var remoteTaskToID: [Int: String] = [:]
+  private lazy var backgroundDownloadSession: URLSession = {
+    let config = URLSessionConfiguration.background(withIdentifier: "com.orioninternetservices.blankie.remote-downloads")
+    config.sessionSendsLaunchEvents = true
+    config.isDiscretionary = false
+    return URLSession(configuration: config, delegate: remoteDownloadDelegate, delegateQueue: nil)
+  }()
 
   private init() {
     print("🎵 AudioManager: Initializing")
@@ -57,6 +90,7 @@ class AudioManager: ObservableObject {
     setupNotificationObservers()
     setupSoundObservers()
     loadRemoteDownloadStatus()
+    setupRemoteDownloadCallbacks()
     recoverInterruptedDownloads()
 
     // Handle autoplay behavior after a slight delay to ensure proper initialization
@@ -260,33 +294,13 @@ class AudioManager: ObservableObject {
     remoteDownloadTasks[id]?.cancel()
     updateRemoteDownload(id: id, state: .queued, progress: 0)
 
-    let task = Task { [weak self] in
-      guard let self else { return }
+    let request = URLRequest(url: remote.remoteAudioURL)
+    let task = backgroundDownloadSession.downloadTask(with: request)
+    remoteTaskToID[task.taskIdentifier] = id
+    task.resume()
 
-      do {
-        await MainActor.run {
-          self.updateRemoteDownload(id: id, state: .downloading, progress: 0.1)
-        }
-
-        let (data, _) = try await URLSession.shared.data(from: remote.remoteAudioURL)
-
-        try self.saveRemoteAudioData(data, for: remote)
-
-        await MainActor.run {
-          self.updateRemoteDownload(id: id, state: .completed, progress: 1.0)
-          self.remoteDownloadTasks[id] = nil
-          AppState.shared.appendTelemetry("[AudioManager] Download completed for \(remote.title)", level: .info)
-        }
-      } catch {
-        await MainActor.run {
-          self.updateRemoteDownload(id: id, state: .failed, progress: 0)
-          self.remoteDownloadTasks[id] = nil
-          AppState.shared.appendTelemetry("[AudioManager] Download failed for \(remote.title): \(error.localizedDescription)", level: .warning)
-        }
-      }
-    }
-
-    remoteDownloadTasks[id] = task
+    updateRemoteDownload(id: id, state: .downloading, progress: 0.01)
+    AppState.shared.appendTelemetry("[AudioManager] Started background download for \(remote.title)", level: .info)
   }
 
   @MainActor
@@ -331,6 +345,7 @@ class AudioManager: ObservableObject {
   func removeRemoteDownload(id: String) {
     remoteDownloadTasks[id]?.cancel()
     remoteDownloadTasks[id] = nil
+    cancelBackgroundDownload(id: id)
 
     if currentlyPlayingRemoteID == id {
       stopDownloadedRemotePlayback()
@@ -347,7 +362,18 @@ class AudioManager: ObservableObject {
   func failRemoteDownloadForDebug(id: String) {
     remoteDownloadTasks[id]?.cancel()
     remoteDownloadTasks[id] = nil
+    cancelBackgroundDownload(id: id)
     updateRemoteDownload(id: id, state: .failed, progress: 0)
+  }
+
+  private func cancelBackgroundDownload(id: String) {
+    backgroundDownloadSession.getAllTasks { [weak self] tasks in
+      guard let self else { return }
+      for task in tasks where self.remoteTaskToID[task.taskIdentifier] == id {
+        task.cancel()
+        self.remoteTaskToID[task.taskIdentifier] = nil
+      }
+    }
   }
 
   @MainActor
@@ -367,6 +393,49 @@ class AudioManager: ObservableObject {
       return
     }
     remoteDownloadStatus = decoded
+  }
+
+  private func setupRemoteDownloadCallbacks() {
+    remoteDownloadDelegate.onProgress = { [weak self] taskID, progress in
+      guard let self, let remoteID = self.remoteTaskToID[taskID] else { return }
+      Task { @MainActor in
+        self.updateRemoteDownload(id: remoteID, state: .downloading, progress: progress)
+      }
+    }
+
+    remoteDownloadDelegate.onFinish = { [weak self] taskID, tempLocation in
+      guard let self, let remoteID = self.remoteTaskToID[taskID],
+            let remote = self.remoteSoundCatalog.first(where: { $0.id == remoteID }) else { return }
+      do {
+        let destination = self.localFileURL(for: remote)
+        try FileManager.default.createDirectory(at: self.remoteAudioDirectoryURL(), withIntermediateDirectories: true)
+        if FileManager.default.fileExists(atPath: destination.path) {
+          try FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.moveItem(at: tempLocation, to: destination)
+
+        Task { @MainActor in
+          self.updateRemoteDownload(id: remoteID, state: .completed, progress: 1.0)
+          self.remoteTaskToID[taskID] = nil
+          AppState.shared.appendTelemetry("[AudioManager] Background download completed for \(remote.title)", level: .info)
+        }
+      } catch {
+        Task { @MainActor in
+          self.updateRemoteDownload(id: remoteID, state: .failed, progress: 0)
+          self.remoteTaskToID[taskID] = nil
+          AppState.shared.appendTelemetry("[AudioManager] Background download move failed for \(remote.title)", level: .error)
+        }
+      }
+    }
+
+    remoteDownloadDelegate.onError = { [weak self] taskID, error in
+      guard let self, let remoteID = self.remoteTaskToID[taskID] else { return }
+      Task { @MainActor in
+        self.updateRemoteDownload(id: remoteID, state: .failed, progress: 0)
+        self.remoteTaskToID[taskID] = nil
+        AppState.shared.appendTelemetry("[AudioManager] Background download failed for \(remoteID): \(error?.localizedDescription ?? "unknown")", level: .warning)
+      }
+    }
   }
 
   private func recoverInterruptedDownloads() {
