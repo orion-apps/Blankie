@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct PlayerView: View {
     @ObservedObject private var audioManager = AudioManager.shared
@@ -19,6 +20,8 @@ struct PlayerView: View {
     @State private var showSleepTimerSheet = false
     @State private var controlsTimer: Timer?
     @State private var gradientPhase: CGFloat = 0
+    @State private var backgroundImageName: String?
+    @State private var imageRotationTimer: Timer?
 
     private var activeSounds: [Sound] {
         audioManager.sounds.filter { $0.isSelected }
@@ -56,12 +59,17 @@ struct PlayerView: View {
         }
         .onAppear {
             scheduleHideControls()
+            configureBackgroundRotation()
             withAnimation(.linear(duration: 8).repeatForever(autoreverses: true)) {
                 gradientPhase = 1
             }
         }
         .onDisappear {
             controlsTimer?.invalidate()
+            imageRotationTimer?.invalidate()
+        }
+        .onReceive(audioManager.$sounds) { _ in
+            configureBackgroundRotation()
         }
         .persistentSystemOverlays(.hidden)
     }
@@ -69,11 +77,22 @@ struct PlayerView: View {
     // MARK: - Background
 
     private var animatedBackground: some View {
-        LinearGradient(
-            colors: blendedColors,
-            startPoint: gradientPhase == 0 ? .topLeading : .bottomTrailing,
-            endPoint: gradientPhase == 0 ? .bottomTrailing : .topLeading
-        )
+        ZStack {
+            if let imageName = backgroundImageName {
+                Image(imageName)
+                    .resizable()
+                    .scaledToFill()
+                    .scaleEffect(1.08 + (0.04 * gradientPhase))
+                    .animation(.linear(duration: 8), value: gradientPhase)
+                    .transition(.opacity)
+            } else {
+                LinearGradient(
+                    colors: blendedColors,
+                    startPoint: gradientPhase == 0 ? .topLeading : .bottomTrailing,
+                    endPoint: gradientPhase == 0 ? .bottomTrailing : .topLeading
+                )
+            }
+        }
         .overlay(
             RadialGradient(
                 colors: [.white.opacity(0.05), .clear],
@@ -82,6 +101,7 @@ struct PlayerView: View {
                 endRadius: 400
             )
         )
+        .overlay(Color.black.opacity(0.18))
     }
 
     // MARK: - Controls
@@ -236,5 +256,52 @@ struct PlayerView: View {
                 showControls = false
             }
         }
+    }
+
+    private func configureBackgroundRotation() {
+        imageRotationTimer?.invalidate()
+
+        let candidates = availableBackgroundImageNames()
+        guard !candidates.isEmpty else {
+            backgroundImageName = nil
+            return
+        }
+
+        if backgroundImageName == nil || !candidates.contains(backgroundImageName ?? "") {
+            backgroundImageName = candidates.first
+        }
+
+        guard candidates.count > 1 else { return }
+
+        imageRotationTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { _ in
+            withAnimation(.easeInOut(duration: 1.0)) {
+                guard let current = backgroundImageName,
+                      let idx = candidates.firstIndex(of: current) else {
+                    backgroundImageName = candidates.first
+                    return
+                }
+                let nextIndex = (idx + 1) % candidates.count
+                backgroundImageName = candidates[nextIndex]
+            }
+        }
+    }
+
+    private func availableBackgroundImageNames() -> [String] {
+        var names: [String] = []
+
+        for sound in activeSounds {
+            let base = sound.fileName
+            let options = [
+                "\(base)_hero",
+                "\(base)_wide",
+                base
+            ]
+
+            for option in options where UIImage(named: option) != nil {
+                if !names.contains(option) { names.append(option) }
+            }
+        }
+
+        return names
     }
 }
