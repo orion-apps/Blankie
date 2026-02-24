@@ -26,7 +26,7 @@ Validate Blankie mixer/blend behavior against SereneScapes expectations and clos
 ### C) Playback/session behavior
 - [x] Master volume control
 - [x] Sleep timer accessible in mixer flow
-- [ ] Blend playback from blend cards / dedicated blend player parity
+- [x] Blend playback from blend cards / dedicated blend player parity
 - [x] Autosave semantics parity while editing loaded blend
 
 ### D) Persistence and resilience
@@ -37,8 +37,8 @@ Validate Blankie mixer/blend behavior against SereneScapes expectations and clos
 
 ### E) UX parity
 - [x] Content source status visible in mixer
-- [ ] Studio-like dedicated mixer workspace (tabs/layout) parity
-- [ ] Error/success messaging parity for blend operations
+- [x] Studio-like dedicated mixer workspace (tabs/layout) parity
+- [x] Error/success messaging parity for blend operations
 
 ## This Slice (completed now)
 - Added explicit blend workflow controls in Blankie mixer:
@@ -49,6 +49,4 @@ Validate Blankie mixer/blend behavior against SereneScapes expectations and clos
 - Enabled Sleep Timer entry in Mixer (removed placeholder)
 
 ## Remaining GAP-05 targets before closeout
-1. Blend playback from blend cards / dedicated blend player parity
-2. Studio-like dedicated mixer workspace (tabs/layout) parity
-3. Error/success messaging parity polish for blend operations
+1. Optional visual polish and ergonomics pass after device QA

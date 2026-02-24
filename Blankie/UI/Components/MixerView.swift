@@ -20,7 +20,14 @@ struct MixerView: View {
     @State private var renamePresetName = ""
     @State private var presetToRename: Preset?
     @State private var workflowMessage: String?
+    @State private var studioMode: StudioMode = .mixer
     @AppStorage("mixerSingleSoloMode") private var singleSoloMode = true
+
+    enum StudioMode: String, CaseIterable, Identifiable {
+        case mixer = "Mixer"
+        case presets = "Presets"
+        var id: String { rawValue }
+    }
 
     private var activeSounds: [Sound] {
         audioManager.sounds.filter { $0.isSelected }
@@ -29,12 +36,18 @@ struct MixerView: View {
     var body: some View {
         NavigationView {
             List {
+                studioModeSection
+                blendPlayerSection
                 contentSourceSection
-                masterVolumeSection
-                activeSoundsSection
-                blendWorkflowSection
-                presetsSection
-                timerSection
+
+                if studioMode == .mixer {
+                    masterVolumeSection
+                    activeSoundsSection
+                    blendWorkflowSection
+                    timerSection
+                } else {
+                    presetsSection
+                }
             }
             .navigationTitle("Now Playing")
             .navigationBarTitleDisplayMode(.inline)
@@ -48,6 +61,7 @@ struct MixerView: View {
                 Button("Save") {
                     if !presetName.isEmpty {
                         presetManager.saveNewPreset(name: presetName)
+                        workflowMessage = "Preset saved"
                         presetName = ""
                     }
                 }
@@ -85,6 +99,51 @@ struct MixerView: View {
     }
 
     // MARK: - Sections
+
+    private var studioModeSection: some View {
+        Section("Studio") {
+            Picker("Workspace", selection: $studioMode) {
+                ForEach(StudioMode.allCases) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
+    }
+
+    private var blendPlayerSection: some View {
+        Section("Blend Player") {
+            let userPresets = presetManager.presets.filter { !$0.isDefault }
+            if userPresets.isEmpty {
+                Text("No saved blends yet")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(userPresets) { preset in
+                            Button {
+                                playBlend(preset)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(preset.name)
+                                        .font(.subheadline.weight(.semibold))
+                                        .lineLimit(1)
+                                    Label("Play Blend", systemImage: "play.fill")
+                                        .font(.caption)
+                                }
+                                .frame(width: 150, alignment: .leading)
+                                .padding(10)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+    }
 
     private var contentSourceSection: some View {
         Section("Content Source") {
@@ -248,7 +307,12 @@ struct MixerView: View {
 
     private func presetRow(_ preset: Preset) -> some View {
         Button {
-            try? presetManager.applyPreset(preset)
+            do {
+                try presetManager.applyPreset(preset)
+                workflowMessage = "Loaded preset: \(preset.name)"
+            } catch {
+                workflowMessage = "Could not load preset: \(preset.name)"
+            }
         } label: {
             HStack {
                 Text(preset.name)
@@ -272,6 +336,7 @@ struct MixerView: View {
                 }
                 Button("Delete", role: .destructive) {
                     presetManager.deletePreset(preset)
+                    workflowMessage = "Deleted preset: \(preset.name)"
                 }
             }
         }
@@ -284,6 +349,16 @@ struct MixerView: View {
             } label: {
                 Label("Sleep Timer", systemImage: "moon.zzz")
             }
+        }
+    }
+
+    private func playBlend(_ preset: Preset) {
+        do {
+            try presetManager.applyPreset(preset)
+            audioManager.setPlaybackState(true)
+            workflowMessage = "Playing blend: \(preset.name)"
+        } catch {
+            workflowMessage = "Could not play blend: \(preset.name)"
         }
     }
 }
