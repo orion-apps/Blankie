@@ -1,8 +1,16 @@
 import SwiftUI
 
 struct LibraryView: View {
+    enum RemoteFilter: String, CaseIterable, Identifiable {
+        case all = "All"
+        case downloaded = "Downloaded"
+        case notDownloaded = "Not Downloaded"
+        var id: String { rawValue }
+    }
+
     @ObservedObject private var audioManager = AudioManager.shared
     @State private var searchText = ""
+    @State private var remoteFilter: RemoteFilter = .all
 
     private var bundled: [Sound] {
         if searchText.isEmpty { return audioManager.sounds }
@@ -10,8 +18,28 @@ struct LibraryView: View {
     }
 
     private var remote: [ServerSoundMetadata] {
-        if searchText.isEmpty { return audioManager.remoteSoundCatalog }
-        return audioManager.remoteSoundCatalog.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
+        let base: [ServerSoundMetadata]
+        if searchText.isEmpty {
+            base = audioManager.remoteSoundCatalog
+        } else {
+            base = audioManager.remoteSoundCatalog.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
+        }
+
+        return base
+            .filter { item in
+                let state = audioManager.downloadStatus(for: item.id).state
+                switch remoteFilter {
+                case .all: return true
+                case .downloaded: return state == .completed
+                case .notDownloaded: return state != .completed
+                }
+            }
+            .sorted { lhs, rhs in
+                let lCompleted = audioManager.downloadStatus(for: lhs.id).state == .completed
+                let rCompleted = audioManager.downloadStatus(for: rhs.id).state == .completed
+                if lCompleted != rCompleted { return lCompleted && !rCompleted }
+                return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+            }
     }
 
     private func statusLabel(_ state: AudioManager.RemoteDownloadState) -> String {
@@ -75,8 +103,15 @@ struct LibraryView: View {
             }
 
             Section("Available Online") {
+                Picker("Remote Filter", selection: $remoteFilter) {
+                    ForEach(RemoteFilter.allCases) { filter in
+                        Text(filter.rawValue).tag(filter)
+                    }
+                }
+                .pickerStyle(.segmented)
+
                 if remote.isEmpty {
-                    Text("No online catalog items right now")
+                    Text("No online catalog items for current filter")
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(remote, id: \.id) { item in
@@ -109,9 +144,9 @@ struct LibraryView: View {
                                     }
                                     .buttonStyle(.borderedProminent)
                                 case .queued, .downloading:
-                                    Button("Mark Failed") {
+                                    Button("Cancel") {
                                         Task { @MainActor in
-                                            audioManager.failRemoteDownloadForDebug(id: item.id)
+                                            audioManager.removeRemoteDownload(id: item.id)
                                         }
                                     }
                                     .buttonStyle(.bordered)
