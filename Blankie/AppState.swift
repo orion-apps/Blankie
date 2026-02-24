@@ -13,9 +13,16 @@ class AppState: ObservableObject {
     case hybrid
   }
 
+  enum ContentTelemetryLevel: String {
+    case info
+    case warning
+    case error
+  }
+
   struct ContentTelemetryEvent: Identifiable {
     let id = UUID()
     let timestamp = Date()
+    let level: ContentTelemetryLevel
     let message: String
   }
 
@@ -27,18 +34,34 @@ class AppState: ObservableObject {
   @Published var contentStatusMessage: String = "Using built-in sounds"
   @Published var contentTelemetry: [ContentTelemetryEvent] = []
 
+  private let contentModeKey = "contentMode"
+  private let contentStatusMessageKey = "contentStatusMessage"
+
   private init() {
     hideInactiveSounds = UserDefaults.standard.bool(forKey: "hideInactiveSounds")
+
+    if let rawMode = UserDefaults.standard.string(forKey: contentModeKey),
+       let mode = ContentMode(rawValue: rawMode) {
+      contentMode = mode
+    }
+
+    if let savedMessage = UserDefaults.standard.string(forKey: contentStatusMessageKey), !savedMessage.isEmpty {
+      contentStatusMessage = savedMessage
+    }
   }
 
   func setContentMode(_ mode: ContentMode, message: String) {
     contentMode = mode
     contentStatusMessage = message
-    appendTelemetry(message)
+
+    UserDefaults.standard.set(mode.rawValue, forKey: contentModeKey)
+    UserDefaults.standard.set(message, forKey: contentStatusMessageKey)
+
+    appendTelemetry(message, level: .info)
   }
 
-  func appendTelemetry(_ message: String) {
-    contentTelemetry.insert(ContentTelemetryEvent(message: message), at: 0)
+  func appendTelemetry(_ message: String, level: ContentTelemetryLevel = .info) {
+    contentTelemetry.insert(ContentTelemetryEvent(level: level, message: message), at: 0)
     if contentTelemetry.count > 50 {
       contentTelemetry = Array(contentTelemetry.prefix(50))
     }

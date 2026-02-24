@@ -84,7 +84,7 @@ final class ContentManager {
 
   func fetchManifest() async throws -> ManifestFetchResult {
     if let cached = try loadCachedManifest(), isFresh(cachedDate: cached.fetchedAt) {
-      emitTelemetry("Manifest loaded from fresh cache")
+      emitTelemetry("Manifest loaded from fresh cache", level: .info)
       return ManifestFetchResult(manifest: cached.manifest, source: .cache, warning: nil)
     }
 
@@ -93,22 +93,22 @@ final class ContentManager {
       let manifest = try decodeAndValidate(data: data)
       try saveCache(payload: data, fetchedAt: now())
       print("[ContentManager] manifest fetch success source=network")
-      emitTelemetry("Manifest fetch success from network")
+      emitTelemetry("Manifest fetch success from network", level: .info)
       return ManifestFetchResult(manifest: manifest, source: .network, warning: nil)
     } catch let error as ManifestValidationError {
       if let cached = try loadCachedManifest() {
-        emitTelemetry("Manifest invalid; using stale cache fallback")
+        emitTelemetry("Manifest invalid; using stale cache fallback", level: .warning)
         return ManifestFetchResult(manifest: cached.manifest, source: .cache, warning: .staleCacheUsed)
       }
       _ = error
-      emitTelemetry("Manifest invalid and no cache available")
+      emitTelemetry("Manifest invalid and no cache available", level: .error)
       throw ContentManagerError.invalidManifestNoCache
     } catch {
       if let cached = try loadCachedManifest() {
-        emitTelemetry("Manifest network failure; using stale cache fallback")
+        emitTelemetry("Manifest network failure; using stale cache fallback", level: .warning)
         return ManifestFetchResult(manifest: cached.manifest, source: .cache, warning: .staleCacheUsed)
       }
-      emitTelemetry("Manifest network failure and no cache available")
+      emitTelemetry("Manifest network failure and no cache available", level: .error)
       throw ContentManagerError.networkFailureNoCache
     }
   }
@@ -194,9 +194,9 @@ final class ContentManager {
     try data.write(to: cacheFileURL, options: .atomic)
   }
 
-  private func emitTelemetry(_ message: String) {
+  private func emitTelemetry(_ message: String, level: AppState.ContentTelemetryLevel) {
     Task { @MainActor in
-      AppState.shared.appendTelemetry("[ContentManager] \(message)")
+      AppState.shared.appendTelemetry("[ContentManager] \(message)", level: level)
     }
   }
 }
