@@ -67,4 +67,43 @@ final class PresetManagerTests: XCTestCase {
       }
     }
   }
+
+  func testDuplicatePresetNameGetsUniqued() async throws {
+    await MainActor.run {
+      presetManager.saveNewPreset(name: "Evening")
+      presetManager.saveNewPreset(name: "Evening")
+
+      XCTAssertTrue(presetManager.presets.contains { $0.name == "Evening" })
+      XCTAssertTrue(presetManager.presets.contains { $0.name == "Evening 2" })
+    }
+  }
+
+  func testOverwriteCurrentPresetFromCurrentState() async throws {
+    await MainActor.run {
+      presetManager.saveNewPreset(name: "Mutable")
+      guard let created = presetManager.presets.first(where: { $0.name == "Mutable" }) else {
+        XCTFail("Missing created preset")
+        return
+      }
+
+      try? presetManager.applyPreset(created)
+
+      if let firstSound = AudioManager.shared.sounds.first {
+        firstSound.isSelected = true
+        firstSound.volume = 0.42
+      }
+
+      let didUpdate = presetManager.overwriteCurrentPresetFromCurrentState()
+      XCTAssertTrue(didUpdate)
+
+      guard let updated = presetManager.currentPreset,
+            let firstState = updated.soundStates.first else {
+        XCTFail("Missing updated preset state")
+        return
+      }
+
+      XCTAssertEqual(firstState.isSelected, true)
+      XCTAssertEqual(firstState.volume, 0.42, accuracy: 0.001)
+    }
+  }
 }

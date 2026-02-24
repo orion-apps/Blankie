@@ -61,11 +61,13 @@ class PresetManager: ObservableObject {
 
   @MainActor
   func saveNewPreset(name: String) {
+    let resolvedName = makeUniquePresetName(from: name)
+
     print("\n🎛️ PresetManager: --- Begin Creating New Preset ---")
-    print("🎛️ PresetManager: Creating new preset '\(name)' from current state")
+    print("🎛️ PresetManager: Creating new preset '\(resolvedName)' from current state")
 
     do {
-      let newPreset = try createPresetFromCurrentState(name: name)
+      let newPreset = try createPresetFromCurrentState(name: resolvedName)
       presets.append(newPreset)
       updateCustomPresetStatus()
 
@@ -160,6 +162,36 @@ class PresetManager: ObservableObject {
 
     savePresets()
     print("🎛️ PresetManager: --- End Delete Preset ---\n")
+  }
+
+  @MainActor
+  func overwriteCurrentPresetFromCurrentState() -> Bool {
+    guard let currentPreset = currentPreset, !currentPreset.isDefault else {
+      return false
+    }
+
+    let newStates = AudioManager.shared.sounds.map { sound in
+      PresetState(fileName: sound.fileName, isSelected: sound.isSelected, volume: sound.volume)
+    }
+
+    guard let index = presets.firstIndex(where: { $0.id == currentPreset.id }) else {
+      return false
+    }
+
+    var updatedPreset = presets[index]
+    updatedPreset.soundStates = newStates
+    presets[index] = updatedPreset
+    self.currentPreset = updatedPreset
+    savePresets()
+    return true
+  }
+
+  @MainActor
+  func startNewBlend() throws {
+    guard let defaultPreset = presets.first(where: { $0.isDefault }) else {
+      throw PresetError.invalidPreset
+    }
+    try applyPreset(defaultPreset)
   }
 
   @MainActor
@@ -269,6 +301,24 @@ class PresetManager: ObservableObject {
   }
 
   // MARK: - Private Methods
+
+  private func makeUniquePresetName(from rawName: String) -> String {
+    let trimmed = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+    let base = trimmed.isEmpty ? "Preset" : trimmed
+
+    if !presets.contains(where: { $0.name.caseInsensitiveCompare(base) == .orderedSame }) {
+      return base
+    }
+
+    var suffix = 2
+    while true {
+      let candidate = "\(base) \(suffix)"
+      if !presets.contains(where: { $0.name.caseInsensitiveCompare(candidate) == .orderedSame }) {
+        return candidate
+      }
+      suffix += 1
+    }
+  }
 
   private func handleError(_ error: Error) {
     print("❌ PresetManager: Error occurred: \(error.localizedDescription)")

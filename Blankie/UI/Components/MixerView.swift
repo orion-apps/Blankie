@@ -15,6 +15,7 @@ struct MixerView: View {
 
     @State private var showSavePreset = false
     @State private var presetName = ""
+    @State private var workflowMessage: String?
 
     private var activeSounds: [Sound] {
         audioManager.sounds.filter { $0.isSelected }
@@ -26,6 +27,7 @@ struct MixerView: View {
                 contentSourceSection
                 masterVolumeSection
                 activeSoundsSection
+                blendWorkflowSection
                 presetsSection
                 timerSection
             }
@@ -47,6 +49,14 @@ struct MixerView: View {
                 Button("Cancel", role: .cancel) {
                     presetName = ""
                 }
+            }
+            .alert("Blend Update", isPresented: Binding(
+                get: { workflowMessage != nil },
+                set: { if !$0 { workflowMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) { workflowMessage = nil }
+            } message: {
+                Text(workflowMessage ?? "")
             }
         }
     }
@@ -102,6 +112,34 @@ struct MixerView: View {
                     SoundMixerRow(sound: sound)
                 }
             }
+        }
+    }
+
+    private var blendWorkflowSection: some View {
+        Section("Blend Workflow") {
+            Button {
+                do {
+                    try presetManager.startNewBlend()
+                    workflowMessage = "Started a new blend from default state"
+                } catch {
+                    workflowMessage = "Could not start a new blend"
+                }
+            } label: {
+                Label("New Blend", systemImage: "plus.square.on.square")
+            }
+
+            Button {
+                let updated = presetManager.overwriteCurrentPresetFromCurrentState()
+                workflowMessage = updated
+                    ? "Updated current blend from mixer state"
+                    : "Select a saved custom blend before updating"
+            } label: {
+                Label("Update Current Blend", systemImage: "square.and.arrow.down")
+            }
+
+            Text("Use New Blend to reset. Use Update Current Blend to save edits to the active custom preset.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
