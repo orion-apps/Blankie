@@ -195,6 +195,7 @@ class AudioManager: ObservableObject {
 
   func ingestRemoteMetadata(_ metadata: [ServerSoundMetadata]) {
     remoteSoundCatalog = metadata
+    reconcileDownloadStatusesWithLocalFiles()
 
     if metadata.isEmpty {
       AppState.shared.setContentMode(.bundledOnly, message: "Using built-in sounds")
@@ -247,26 +248,38 @@ class AudioManager: ObservableObject {
 
   @MainActor
   func startRemoteDownload(id: String) {
+    guard let remote = remoteSoundCatalog.first(where: { $0.id == id }) else {
+      updateRemoteDownload(id: id, state: .failed, progress: 0)
+      AppState.shared.appendTelemetry("[AudioManager] Download failed: missing remote metadata for \(id)", level: .error)
+      return
+    }
+
     remoteDownloadTasks[id]?.cancel()
     updateRemoteDownload(id: id, state: .queued, progress: 0)
 
     let task = Task { [weak self] in
       guard let self else { return }
-      try? await Task.sleep(nanoseconds: 300_000_000)
-      await MainActor.run { self.updateRemoteDownload(id: id, state: .downloading, progress: 0.05) }
 
-      for step in 1...12 {
-        if Task.isCancelled { return }
-        try? await Task.sleep(nanoseconds: 250_000_000)
-        let progress = min(Double(step) / 12.0, 1.0)
+      do {
         await MainActor.run {
-          self.updateRemoteDownload(id: id, state: .downloading, progress: progress)
+          self.updateRemoteDownload(id: id, state: .downloading, progress: 0.1)
         }
-      }
 
-      await MainActor.run {
-        self.updateRemoteDownload(id: id, state: .completed, progress: 1.0)
-        self.remoteDownloadTasks[id] = nil
+        let (data, _) = try await URLSession.shared.data(from: remote.remoteAudioURL)
+
+        try self.saveRemoteAudioData(data, for: remote)
+
+        await MainActor.run {
+          self.updateRemoteDownload(id: id, state: .completed, progress: 1.0)
+          self.remoteDownloadTasks[id] = nil
+          AppState.shared.appendTelemetry("[AudioManager] Download completed for \(remote.title)", level: .info)
+        }
+      } catch {
+        await MainActor.run {
+          self.updateRemoteDownload(id: id, state: .failed, progress: 0)
+          self.remoteDownloadTasks[id] = nil
+          AppState.shared.appendTelemetry("[AudioManager] Download failed for \(remote.title): \(error.localizedDescription)", level: .warning)
+        }
       }
     }
 
@@ -282,6 +295,11 @@ class AudioManager: ObservableObject {
   func removeRemoteDownload(id: String) {
     remoteDownloadTasks[id]?.cancel()
     remoteDownloadTasks[id] = nil
+
+    if let remote = remoteSoundCatalog.first(where: { $0.id == id }) {
+      try? FileManager.default.removeItem(at: localFileURL(for: remote))
+    }
+
     updateRemoteDownload(id: id, state: .notDownloaded, progress: 0)
   }
 
@@ -309,6 +327,41 @@ class AudioManager: ObservableObject {
       return
     }
     remoteDownloadStatus = decoded
+  }
+
+  private func remoteAudioDirectoryURL() -> URL {
+    let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+      ?? URL(fileURLWithPath: NSTemporaryDirectory())
+    return docs.appendingPathComponent("RemoteAudio", isDirectory: true)
+  }
+
+  private func localFileURL(for remote: ServerSoundMetadata) -> URL {
+    let ext = remote.remoteAudioURL.pathExtension.isEmpty ? "m4a" : remote.remoteAudioURL.pathExtension
+    return remoteAudioDirectoryURL().appendingPathComponent("\(remote.id).\(ext)")
+  }
+
+  private func saveRemoteAudioData(_ data: Data, for remote: ServerSoundMetadata) throws {
+    let dir = remoteAudioDirectoryURL()
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    let destination = localFileURL(for: remote)
+    try data.write(to: destination, options: .atomic)
+  }
+
+  private func reconcileDownloadStatusesWithLocalFiles() {
+    var changed = false
+    for remote in remoteSoundCatalog {
+      let fileExists = FileManager.default.fileExists(atPath: localFileURL(for: remote).path)
+      let current = remoteDownloadStatus[remote.id]?.state ?? .notDownloaded
+      if fileExists && current != .completed {
+        remoteDownloadStatus[remote.id] = RemoteDownloadStatus(state: .completed, progress: 1.0, updatedAt: Date())
+        changed = true
+      } else if !fileExists && current == .completed {
+        remoteDownloadStatus[remote.id] = RemoteDownloadStatus(state: .notDownloaded, progress: 0, updatedAt: Date())
+        changed = true
+      }
+    }
+
+    if changed { persistRemoteDownloadStatus() }
   }
 
   private func setupMediaControls() {
