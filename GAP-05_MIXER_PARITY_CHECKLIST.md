@@ -27,7 +27,7 @@ Validate Blankie mixer/blend behavior against SereneScapes expectations and clos
 - [x] Master volume control
 - [x] Sleep timer accessible in mixer flow
 - [ ] Blend playback from blend cards / dedicated blend player parity
-- [ ] Autosave semantics parity while editing loaded blend
+- [x] Autosave semantics parity while editing loaded blend
 
 ### D) Persistence and resilience
 - [x] Basic preset persistence

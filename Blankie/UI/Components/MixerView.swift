@@ -173,7 +173,23 @@ struct MixerView: View {
                 Label("Update Current Blend", systemImage: "square.and.arrow.down")
             }
 
-            Text("Use New Blend to reset. Use Update Current Blend to save edits to the active custom preset.")
+            if let current = presetManager.currentPreset, !current.isDefault {
+                if let lastAutosaveAt = presetManager.lastAutosaveAt {
+                    Text("Autosave enabled for this blend • Last saved \(lastAutosaveAt.formatted(date: .omitted, time: .shortened))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Autosave enabled for this blend")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Text("Load a custom blend to enable autosave while editing.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text("Use New Blend to reset. Use Update Current Blend to force-save immediately.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

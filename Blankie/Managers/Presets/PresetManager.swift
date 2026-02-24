@@ -24,6 +24,7 @@ class PresetManager: ObservableObject {
   @Published private(set) var isLoading: Bool = true
   @Published private(set) var error: Error?
   @Published private(set) var lastApplyWarning: String?
+  @Published private(set) var lastAutosaveAt: Date?
 
   private var cancellables = Set<AnyCancellable>()
   private var isInitialLoad = true
@@ -225,7 +226,12 @@ class PresetManager: ObservableObject {
       if let index = presets.firstIndex(where: { $0.id == preset.id }) {
         presets[index] = updatedPreset
         currentPreset = updatedPreset
-        savePresets()
+
+        // Autosave semantics: only autosave loaded custom blends.
+        if !updatedPreset.isDefault {
+          savePresets()
+          lastAutosaveAt = Date()
+        }
       }
     }
   }
