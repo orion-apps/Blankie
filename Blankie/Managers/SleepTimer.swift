@@ -51,7 +51,7 @@ class SleepTimer: ObservableObject {
     func start(duration: TimeInterval) {
         cancel() // clear any existing timer
 
-        let seconds = max(Int(duration.rounded()), 60)
+        let seconds = Self.clampedSeconds(duration)
         let end = Date().addingTimeInterval(TimeInterval(seconds))
         endDate = end
         UserDefaults.standard.set(end.timeIntervalSince1970, forKey: endDateKey)
@@ -108,14 +108,8 @@ class SleepTimer: ObservableObject {
 
     /// Formatted remaining time string like "1:23:45" or "23:45"
     var displayString: String {
-        guard let secs = remainingSeconds, secs > 0 else { return "" }
-        let h = secs / 3600
-        let m = (secs % 3600) / 60
-        let s = secs % 60
-        if h > 0 {
-            return String(format: "%d:%02d:%02d", h, m, s)
-        }
-        return String(format: "%d:%02d", m, s)
+        guard let secs = remainingSeconds else { return "" }
+        return Self.formatDisplayString(fromSeconds: secs)
     }
 
     /// Formatted end-time string for UI, e.g. "Ends at 11:45 PM"
@@ -125,6 +119,21 @@ class SleepTimer: ObservableObject {
         formatter.timeStyle = .short
         formatter.dateStyle = .none
         return "Ends at \(formatter.string(from: endDate))"
+    }
+
+    static func clampedSeconds(_ duration: TimeInterval) -> Int {
+        max(Int(duration.rounded()), 60)
+    }
+
+    static func formatDisplayString(fromSeconds secs: Int) -> String {
+        guard secs > 0 else { return "" }
+        let h = secs / 3600
+        let m = (secs % 3600) / 60
+        let s = secs % 60
+        if h > 0 {
+            return String(format: "%d:%02d:%02d", h, m, s)
+        }
+        return String(format: "%d:%02d", m, s)
     }
 
     // MARK: - Internals
