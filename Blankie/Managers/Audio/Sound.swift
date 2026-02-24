@@ -52,6 +52,31 @@ open class Sound: ObservableObject, Identifiable {
     }
   }
 
+  @Published var pan: Float = 0.0 {
+    didSet {
+      guard pan >= -1.0 && pan <= 1.0 else {
+        pan = oldValue
+        return
+      }
+      player?.pan = pan
+      UserDefaults.standard.set(pan, forKey: "\(fileName)_pan")
+    }
+  }
+
+  @Published var isMuted: Bool = false {
+    didSet {
+      UserDefaults.standard.set(isMuted, forKey: "\(fileName)_isMuted")
+      notifyMixerStateChanged()
+    }
+  }
+
+  @Published var isSolo: Bool = false {
+    didSet {
+      UserDefaults.standard.set(isSolo, forKey: "\(fileName)_isSolo")
+      notifyMixerStateChanged()
+    }
+  }
+
   var player: AVAudioPlayer?
   private let fadeDuration: TimeInterval = 0.1
   private var fadeTimer: Timer?
@@ -74,6 +99,10 @@ open class Sound: ObservableObject, Identifiable {
 
     // Restore selected state
     self.isSelected = UserDefaults.standard.bool(forKey: "\(fileName)_isSelected")
+    self.pan = UserDefaults.standard.float(forKey: "\(fileName)_pan")
+    self.isMuted = UserDefaults.standard.bool(forKey: "\(fileName)_isMuted")
+    self.isSolo = UserDefaults.standard.bool(forKey: "\(fileName)_isSolo")
+
     // Observe global volume changes
     globalSettingsObserver = GlobalSettings.shared.$volume
       .sink { [weak self] _ in
@@ -88,7 +117,9 @@ open class Sound: ObservableObject, Identifiable {
 
   private func updateVolume() {
     let scaledVol = scaledVolume(volume)
-    let effectiveVolume = scaledVol * Float(GlobalSettings.shared.volume)
+    let anySolo = AudioManager.shared.sounds.contains { $0.isSolo }
+    let isAudible = !isMuted && (!anySolo || isSolo)
+    let effectiveVolume = isAudible ? (scaledVol * Float(GlobalSettings.shared.volume)) : 0
 
     // Update volume immediately
     if player?.volume != effectiveVolume {
@@ -102,6 +133,10 @@ open class Sound: ObservableObject, Identifiable {
         print("🔊 Sound: Updated '\(self.fileName)' volume to \(effectiveVolume)")
       }
     }
+  }
+
+  private func notifyMixerStateChanged() {
+    AudioManager.shared.sounds.forEach { $0.updateVolume() }
   }
 
   private func updatePresetState() {
@@ -126,6 +161,7 @@ open class Sound: ObservableObject, Identifiable {
     do {
       player = try AVAudioPlayer(contentsOf: url)
       player?.volume = volume * Float(GlobalSettings.shared.volume)
+      player?.pan = pan
       player?.numberOfLoops = -1
       player?.enableRate = false  // Disable rate/pitch adjustment
       player?.prepareToPlay()

@@ -207,28 +207,84 @@ struct SoundMixerRow: View {
     @ObservedObject var sound: Sound
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: sound.systemIconName)
-                .foregroundStyle(.secondary)
-                .frame(width: 24)
-
-            Text(sound.title)
-                .font(.subheadline)
-                .frame(width: 90, alignment: .leading)
-
-            Slider(value: Binding(
-                get: { sound.volume },
-                set: { sound.volume = $0 }
-            ), in: 0...1)
-            .tint(.accentColor)
-
-            Button {
-                sound.toggle()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Image(systemName: sound.systemIconName)
                     .foregroundStyle(.secondary)
+                    .frame(width: 24)
+
+                Text(sound.title)
+                    .font(.subheadline)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button {
+                    sound.isMuted.toggle()
+                } label: {
+                    Image(systemName: sound.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                        .foregroundStyle(sound.isMuted ? .orange : .secondary)
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    if sound.isSolo {
+                        sound.isSolo = false
+                    } else {
+                        AudioManager.shared.sounds.forEach { $0.isSolo = false }
+                        sound.isSolo = true
+                    }
+                } label: {
+                    Text("S")
+                        .font(.caption.bold())
+                        .frame(width: 20, height: 20)
+                        .background(Circle().fill(sound.isSolo ? Color.accentColor.opacity(0.25) : Color.clear))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    sound.toggle()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+
+            VStack(spacing: 6) {
+                HStack(spacing: 10) {
+                    Text("Vol")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 28, alignment: .leading)
+
+                    Slider(value: Binding(
+                        get: { sound.volume },
+                        set: { sound.volume = $0 }
+                    ), in: 0...1)
+                    .tint(.accentColor)
+                }
+
+                HStack(spacing: 10) {
+                    Text("Pan")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 28, alignment: .leading)
+
+                    Text("L")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+
+                    Slider(value: Binding(
+                        get: { sound.pan },
+                        set: { sound.pan = $0 }
+                    ), in: -1...1)
+                    .tint(.accentColor)
+
+                    Text("R")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
+        .padding(.vertical, 4)
     }
 }
