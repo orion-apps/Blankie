@@ -176,7 +176,8 @@ class PresetManager: ObservableObject {
       PresetState(fileName: sound.fileName, isSelected: sound.isSelected, volume: sound.volume)
     }
     let remoteStates = AudioManager.shared.selectedRemoteTrackIDs.sorted().map {
-      RemotePresetState(remoteID: $0, isSelected: true, volume: 1.0)
+      let mix = AudioManager.shared.remoteMixSettings(for: $0)
+      return RemotePresetState(remoteID: $0, isSelected: true, volume: mix.volume, pan: mix.pan)
     }
 
     guard let index = presets.firstIndex(where: { $0.id == currentPreset.id }) else {
@@ -222,7 +223,8 @@ class PresetManager: ObservableObject {
       )
     }
     let newRemoteStates = AudioManager.shared.selectedRemoteTrackIDs.sorted().map {
-      RemotePresetState(remoteID: $0, isSelected: true, volume: 1.0)
+      let mix = AudioManager.shared.remoteMixSettings(for: $0)
+      return RemotePresetState(remoteID: $0, isSelected: true, volume: mix.volume, pan: mix.pan)
     }
 
     // Only update if state has actually changed
@@ -424,7 +426,8 @@ class PresetManager: ObservableObject {
         )
       }
       updatedPreset.remoteStates = AudioManager.shared.selectedRemoteTrackIDs.sorted().map {
-        RemotePresetState(remoteID: $0, isSelected: true, volume: 1.0)
+        let mix = AudioManager.shared.remoteMixSettings(for: $0)
+        return RemotePresetState(remoteID: $0, isSelected: true, volume: mix.volume, pan: mix.pan)
       }
       presets[index] = updatedPreset
       self.currentPreset = updatedPreset
@@ -492,7 +495,8 @@ class PresetManager: ObservableObject {
         )
       },
       remoteStates: AudioManager.shared.selectedRemoteTrackIDs.sorted().map {
-        RemotePresetState(remoteID: $0, isSelected: true, volume: 1.0)
+        let mix = AudioManager.shared.remoteMixSettings(for: $0)
+        return RemotePresetState(remoteID: $0, isSelected: true, volume: mix.volume, pan: mix.pan)
       },
       isDefault: false
     )

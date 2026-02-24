@@ -222,8 +222,13 @@ struct MixerView: View {
                     .foregroundStyle(.secondary)
                     .font(.caption)
             } else {
+                Text("Selected remote tracks: \(audioManager.selectedRemoteTrackIDs.count)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 ForEach(downloaded, id: \.id) { item in
-                    VStack(alignment: .leading, spacing: 6) {
+                    let mix = audioManager.remoteMixSettings(for: item.id)
+                    VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(item.title)
@@ -253,6 +258,46 @@ struct MixerView: View {
                             }
                         ))
                         .font(.caption)
+
+                        HStack(spacing: 10) {
+                            Text("Vol")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 28, alignment: .leading)
+
+                            Slider(value: Binding(
+                                get: { Double(mix.volume) },
+                                set: { newValue in
+                                    Task { @MainActor in
+                                        audioManager.updateRemoteTrackMix(id: item.id, volume: Float(newValue))
+                                    }
+                                }
+                            ), in: 0...1)
+                        }
+
+                        HStack(spacing: 10) {
+                            Text("Pan")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 28, alignment: .leading)
+
+                            Text("L")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+
+                            Slider(value: Binding(
+                                get: { Double(mix.pan) },
+                                set: { newValue in
+                                    Task { @MainActor in
+                                        audioManager.updateRemoteTrackMix(id: item.id, pan: Float(newValue))
+                                    }
+                                }
+                            ), in: -1...1)
+
+                            Text("R")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
             }

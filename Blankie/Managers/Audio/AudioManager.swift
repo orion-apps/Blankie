@@ -57,6 +57,11 @@ class AudioManager: ObservableObject {
     var updatedAt: Date
   }
 
+  struct RemoteTrackMixSettings: Codable {
+    var volume: Float
+    var pan: Float
+  }
+
   private var cancellables = Set<AnyCancellable>()
   static let shared = AudioManager()
   var onReset: (() -> Void)?
@@ -69,6 +74,7 @@ class AudioManager: ObservableObject {
   @Published private(set) var remoteDownloadStatus: [String: RemoteDownloadStatus] = [:]
   @Published private(set) var currentlyPlayingRemoteID: String?
   @Published private(set) var selectedRemoteTrackIDs: Set<String> = []
+  @Published private(set) var remoteTrackMix: [String: RemoteTrackMixSettings] = [:]
 
   private let commandCenter = MPRemoteCommandCenter.shared()
   private var nowPlayingInfo: [String: Any] = [:]
@@ -78,6 +84,7 @@ class AudioManager: ObservableObject {
   private var remotePreviewPlayer: AVAudioPlayer?
   private var remotePlayers: [String: AVAudioPlayer] = [:]
   private let remoteDownloadStatusKey = "remoteDownloadStatus"
+  private let remoteTrackMixKey = "remoteTrackMix"
   private let remoteDownloadDelegate = RemoteDownloadDelegate()
   private var remoteTaskToID: [Int: String] = [:]
   private var backgroundSessionCompletionHandler: (() -> Void)?
@@ -98,6 +105,7 @@ class AudioManager: ObservableObject {
     setupNotificationObservers()
     setupSoundObservers()
     loadRemoteDownloadStatus()
+    loadRemoteTrackMix()
     setupRemoteDownloadCallbacks()
     recoverInterruptedDownloads()
 
@@ -318,6 +326,10 @@ class AudioManager: ObservableObject {
 
   @MainActor
   func setRemoteTrackSelected(id: String, isSelected: Bool) {
+    if remoteTrackMix[id] == nil {
+      remoteTrackMix[id] = RemoteTrackMixSettings(volume: 1.0, pan: 0.0)
+    }
+
     if isSelected {
       selectedRemoteTrackIDs.insert(id)
       playDownloadedRemote(id: id)
@@ -325,12 +337,36 @@ class AudioManager: ObservableObject {
       selectedRemoteTrackIDs.remove(id)
       stopDownloadedRemotePlayback(id: id)
     }
+    persistRemoteTrackMix()
+  }
+
+  func remoteMixSettings(for id: String) -> RemoteTrackMixSettings {
+    remoteTrackMix[id] ?? RemoteTrackMixSettings(volume: 1.0, pan: 0.0)
+  }
+
+  @MainActor
+  func updateRemoteTrackMix(id: String, volume: Float? = nil, pan: Float? = nil) {
+    var current = remoteTrackMix[id] ?? RemoteTrackMixSettings(volume: 1.0, pan: 0.0)
+    if let volume { current.volume = min(max(volume, 0), 1) }
+    if let pan { current.pan = min(max(pan, -1), 1) }
+    remoteTrackMix[id] = current
+
+    if let player = remotePlayers[id] {
+      player.volume = current.volume * Float(GlobalSettings.shared.volume)
+      player.pan = current.pan
+    }
+    persistRemoteTrackMix()
   }
 
   @MainActor
   func applyRemotePresetStates(_ states: [RemotePresetState]) async -> [String] {
     let targetSelected = Set(states.filter { $0.isSelected }.map { $0.remoteID })
     let availableIDs = Set(remoteSoundCatalog.map { $0.id })
+
+    for state in states {
+      remoteTrackMix[state.remoteID] = RemoteTrackMixSettings(volume: state.volume, pan: state.pan)
+    }
+    persistRemoteTrackMix()
 
     let missing = Array(targetSelected.subtracting(availableIDs))
 
@@ -358,13 +394,17 @@ class AudioManager: ObservableObject {
     }
 
     do {
-      // Pause bundled loop playback while previewing downloaded remote track.
-      pauseAll()
-      isGloballyPlaying = false
+      // Pause bundled loop playback when first remote track begins.
+      if remotePlayers.isEmpty {
+        pauseAll()
+        isGloballyPlaying = false
+      }
 
+      let mix = remoteMixSettings(for: id)
       let player = try AVAudioPlayer(contentsOf: fileURL)
       player.numberOfLoops = -1
-      player.volume = Float(GlobalSettings.shared.volume)
+      player.volume = mix.volume * Float(GlobalSettings.shared.volume)
+      player.pan = mix.pan
       player.prepareToPlay()
       player.play()
       remotePlayers[id] = player
@@ -453,6 +493,19 @@ class AudioManager: ObservableObject {
       return
     }
     remoteDownloadStatus = decoded
+  }
+
+  private func persistRemoteTrackMix() {
+    guard let data = try? JSONEncoder().encode(remoteTrackMix) else { return }
+    UserDefaults.standard.set(data, forKey: remoteTrackMixKey)
+  }
+
+  private func loadRemoteTrackMix() {
+    guard let data = UserDefaults.standard.data(forKey: remoteTrackMixKey),
+          let decoded = try? JSONDecoder().decode([String: RemoteTrackMixSettings].self, from: data) else {
+      return
+    }
+    remoteTrackMix = decoded
   }
 
   func handleBackgroundSessionEvents(identifier: String, completionHandler: @escaping () -> Void) {
