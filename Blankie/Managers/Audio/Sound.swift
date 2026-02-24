@@ -78,6 +78,10 @@ open class Sound: ObservableObject, Identifiable {
   }
 
   var player: AVAudioPlayer?
+
+  var isPlaying: Bool {
+    player?.isPlaying == true
+  }
   private let fadeDuration: TimeInterval = 0.1
   private var fadeTimer: Timer?
   private var fadeStartVolume: Float = 0
@@ -187,6 +191,14 @@ open class Sound: ObservableObject, Identifiable {
     player.play()
     completion?(.success(()))
   }
+  func togglePlayback() {
+    if isPlaying {
+      pause(immediate: true)
+    } else {
+      play()
+    }
+  }
+
   func pause(immediate: Bool = false) {
     print("🔊 Sound: Pausing '\(fileName)' (immediate: \(immediate))")
     if immediate {

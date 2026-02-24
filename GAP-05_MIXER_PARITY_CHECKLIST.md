@@ -21,7 +21,7 @@ Validate Blankie mixer/blend behavior against SereneScapes expectations and clos
 - [x] Per-track volume control
 - [x] Per-track pan control parity (SereneScapes has explicit pan UX)
 - [x] Solo/mute semantics parity (single/multi-solo modes + clear solo)
-- [ ] Per-track play/pause parity
+- [x] Per-track play/pause parity
 
 ### C) Playback/session behavior
 - [x] Master volume control
@@ -32,8 +32,8 @@ Validate Blankie mixer/blend behavior against SereneScapes expectations and clos
 ### D) Persistence and resilience
 - [x] Basic preset persistence
 - [ ] Bundled vs user blend distinction parity
-- [ ] Edit blend metadata/name in mixer context parity
-- [ ] Defensive handling for missing/deleted sounds in saved blend
+- [x] Edit blend metadata/name in mixer context parity
+- [x] Defensive handling for missing/deleted sounds in saved blend
 
 ### E) UX parity
 - [x] Content source status visible in mixer

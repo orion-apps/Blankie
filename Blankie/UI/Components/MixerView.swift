@@ -292,6 +292,14 @@ struct SoundMixerRow: View {
                 .buttonStyle(.plain)
 
                 Button {
+                    sound.togglePlayback()
+                } label: {
+                    Image(systemName: sound.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+
+                Button {
                     sound.toggle()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
