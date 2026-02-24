@@ -1,15 +1,15 @@
 //
 //  ContentView.swift
-//  Blankie
+//  SereneScapes
 //
 //  Created by Cody Bromley on 12/30/24.
+//  Converted to iOS by SereneScapes team.
 //
 
 import SwiftUI
 
 struct ContentView: View {
   @Binding var showingAbout: Bool
-  @Binding var showingShortcuts: Bool
   @Binding var showingNewPresetPopover: Bool
   @Binding var presetName: String
 
@@ -33,8 +33,8 @@ struct ContentView: View {
     audioManager.isGloballyPlaying ? .primary : .secondary
   }
 
-  // Define constant sizes
-  private let itemWidth: CGFloat = 120  // Total width including padding
+  // Define constant sizes - smaller for iPhone
+  private let itemWidth: CGFloat = 100
   private let minimumSpacing: CGFloat = 10
 
   var body: some View {
@@ -135,35 +135,17 @@ struct ContentView: View {
           .padding(.horizontal, 16)
         }
         .frame(maxWidth: .infinity)
-        .background(Color(NSColor.windowBackgroundColor).opacity(0.3))
+        .background(Color(.systemBackground).opacity(0.3))
         .background(.ultraThinMaterial)
       }
     }
-
     .ignoresSafeArea(.container, edges: .horizontal)
     .animation(.easeInOut(duration: 0.2), value: audioManager.isGloballyPlaying)
-    .sheet(isPresented: $showingShortcuts) {
-      ShortcutsView()
-        .background(.ultraThinMaterial)
-        .presentationBackground(.ultraThinMaterial)
-    }
     .sheet(isPresented: $showingAbout) {
       AboutView()
     }
     .onAppear {
       setupResetHandler()
-      if !audioManager.isGloballyPlaying {
-        NSApp.dockTile.badgeLabel = "⏸"
-      } else {
-        NSApp.dockTile.badgeLabel = nil
-      }
-    }
-    .onChange(of: audioManager.isGloballyPlaying) {
-      if !audioManager.isGloballyPlaying {
-        NSApp.dockTile.badgeLabel = "⏸"
-      } else {
-        NSApp.dockTile.badgeLabel = nil
-      }
     }
     .modifier(AudioErrorHandler())
   }
@@ -179,7 +161,6 @@ struct ContentView: View {
       showingVolumePopover = false
     }
   }
-
 }
 
 struct ContentView_Previews: PreviewProvider {
@@ -187,12 +168,11 @@ struct ContentView_Previews: PreviewProvider {
     Group {
       ContentView(
         showingAbout: .constant(false),
-        showingShortcuts: .constant(false),
         showingNewPresetPopover: .constant(false),
         presetName: .constant("")
       )
       .frame(width: 600, height: 400)
     }
-    .previewDisplayName("Blankie")
+    .previewDisplayName("SereneScapes")
   }
 }

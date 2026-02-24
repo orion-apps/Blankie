@@ -9,7 +9,6 @@ import SwiftUI
 
 struct BlankieToolbar: ToolbarContent {
   @Binding var showingAbout: Bool
-  @Binding var showingShortcuts: Bool
   @Binding var showingNewPresetPopover: Bool
   @Binding var presetName: String
 
@@ -17,21 +16,17 @@ struct BlankieToolbar: ToolbarContent {
   @StateObject private var audioManager = AudioManager.shared
   @StateObject private var presetManager = PresetManager.shared
 
+  @State private var showingPreferences = false
+
   var body: some ToolbarContent {
-    ToolbarItem(placement: .primaryAction) {
+    ToolbarItem(placement: .topBarLeading) {
       if !PresetManager.shared.presets.isEmpty {
         PresetPicker()
       }
     }
 
-    ToolbarItem(placement: .primaryAction) {
+    ToolbarItem(placement: .topBarTrailing) {
       Menu {
-        Button("Add Sound (Coming Soon!)") {
-          // Implement add sound functionality
-        }
-        .keyboardShortcut("o", modifiers: .command)
-        .disabled(true)
-
         Button {
           withAnimation {
             appState.hideInactiveSounds.toggle()
@@ -46,37 +41,31 @@ struct BlankieToolbar: ToolbarContent {
             }
           }
         }
-        .keyboardShortcut("h", modifiers: [.control, .command])
 
         Divider()
 
-        Button("About Blankie") {
+        Button("About SereneScapes") {
           showingAbout = true
           appState.isAboutViewPresented = true
         }
 
-        Button("Keyboard Shortcuts") {
-          showingShortcuts = true
+        Button("Preferences") {
+          showingPreferences = true
         }
-        .keyboardShortcut("?", modifiers: [.command, .shift])
-
-        SettingsLink {
-          Text("Preferences...", comment: "Preferences menu item")
-        }
-        .keyboardShortcut(",", modifiers: .command)
-
-        Divider()
-
-        Button("Quit Blankie") {
-          audioManager.pauseAll()
-          exit(0)
-        }
-        .keyboardShortcut("q", modifiers: .command)
       } label: {
         Image(systemName: "line.3.horizontal")
       }
-      .menuIndicator(.hidden)
-      .menuStyle(.borderlessButton)
+      .sheet(isPresented: $showingPreferences) {
+        NavigationView {
+          PreferencesView()
+            .navigationTitle("Preferences")
+            .toolbar {
+              ToolbarItem(placement: .confirmationAction) {
+                Button("Done") { showingPreferences = false }
+              }
+            }
+        }
+      }
     }
   }
 }

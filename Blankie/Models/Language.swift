@@ -1,8 +1,9 @@
 //
 //  Language.swift
-//  Blankie
+//  SereneScapes
 //
 //  Created by Cody Bromley on 5/21/25.
+//  Converted to iOS by SereneScapes team.
 //
 
 import Foundation
@@ -183,7 +184,6 @@ struct Language: Hashable, Identifiable, Equatable {
     UserDefaults.standard.synchronize()
     resetBundleLocalization()
     NotificationCenter.default.post(name: Notification.Name("LanguageDidChange"), object: nil)
-
   }
 
   private static func resetBundleLocalization() {
@@ -194,25 +194,15 @@ struct Language: Hashable, Identifiable, Equatable {
     print("🌐 Attempting to refresh localization with languages: \(languages)")
 
     // Try to force UI refresh
-    // This is a hack and only works partially
-    _ = Bundle.main.localizations  // Use discard pattern to silence warning
+    _ = Bundle.main.localizations
     NotificationCenter.default.post(name: NSLocale.currentLocaleDidChangeNotification, object: nil)
   }
 
+  // On iOS, we can't programmatically restart the app like on macOS
+  // Instead, we inform the user to restart manually
   static func restartApp() {
-    let url = Bundle.main.bundleURL
-    let task = Process()
-    task.launchPath = "/usr/bin/open"
-    task.arguments = ["-n", url.path]
-
-    // Store a flag to indicate we're restarting
-    UserDefaults.standard.set(true, forKey: "AppIsRestarting")
-    UserDefaults.standard.synchronize()
-
-    // Allow some time for UserDefaults to sync before quitting
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-      task.launch()
-      NSApplication.shared.terminate(nil)
-    }
+    // On iOS, apps cannot restart themselves programmatically
+    // The user needs to manually close and reopen the app
+    print("🌐 Language change requires app restart - user must manually restart on iOS")
   }
 }

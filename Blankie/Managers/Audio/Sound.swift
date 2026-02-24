@@ -203,22 +203,15 @@ open class Sound: ObservableObject, Identifiable {
   func toggle() {
     print("🔊 Sound: Sound '\(fileName)' - toggle called, currently selected \(isSelected)")
 
-    let wasSelected = isSelected
+    // Always toggle local selection state.
+    isSelected.toggle()
 
-    // If audio is globally paused and we're clicking an icon
-    if !AudioManager.shared.isGloballyPlaying {
-      // Don't unselect if already selected
-      if !wasSelected {
-        isSelected = true
-      }
-      // Resume global playback
+    // If we just selected a sound while globally paused, resume global playback.
+    if isSelected && !AudioManager.shared.isGloballyPlaying {
       AudioManager.shared.setPlaybackState(true)
-    } else {
-      // Normal toggle behavior when playing
-      isSelected.toggle()
     }
 
-    // Handle the playback
+    // Handle local playback for this sound.
     if isSelected {
       play()
     } else {

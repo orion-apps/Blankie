@@ -1,14 +1,16 @@
 //
 //  AudioManager.swift
-//  Blankie
+//  SereneScapes
 //
 //  Created by Cody Bromley on 12/30/24.
+//  Converted to iOS by SereneScapes team.
 //
 
 import AVFoundation
 import Combine
 import MediaPlayer
 import SwiftUI
+import UIKit
 
 class AudioManager: ObservableObject {
   private var cancellables = Set<AnyCancellable>()
@@ -16,6 +18,7 @@ class AudioManager: ObservableObject {
   var onReset: (() -> Void)?
 
   @Published var sounds: [Sound] = []
+  @Published private(set) var remoteSoundCatalog: [ServerSoundMetadata] = []
   @Published private(set) var isGloballyPlaying: Bool = false
 
   private let commandCenter = MPRemoteCommandCenter.shared()
@@ -24,6 +27,7 @@ class AudioManager: ObservableObject {
 
   private init() {
     print("🎵 AudioManager: Initializing")
+    setupAudioSession()
     loadSounds()
     loadSavedState()
     setupNowPlaying()
@@ -62,6 +66,17 @@ class AudioManager: ObservableObject {
     }
   }
 
+  private func setupAudioSession() {
+    do {
+      let audioSession = AVAudioSession.sharedInstance()
+      try audioSession.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+      try audioSession.setActive(true)
+      print("🎵 AudioManager: Audio session configured for background playback")
+    } catch {
+      print("❌ AudioManager: Failed to setup audio session: \(error)")
+    }
+  }
+
   private func setupSoundObservers() {
     // Clear any existing observers
     cancellables.removeAll()
@@ -78,6 +93,7 @@ class AudioManager: ObservableObject {
         .store(in: &cancellables)
     }
   }
+
   func setPlaybackState(_ playing: Bool, forceUpdate: Bool = false) {
     guard !isInitializing || forceUpdate else {
       print("🎵 AudioManager: Ignoring setPlaybackState during initialization")
@@ -103,6 +119,7 @@ class AudioManager: ObservableObject {
       }
     }
   }
+
   private func loadSounds() {
     print("🎵 AudioManager: Loading sounds from JSON")
     let bundlePath = Bundle.main.bundlePath
@@ -149,6 +166,17 @@ class AudioManager: ObservableObject {
       print("❌ AudioManager: Failed to parse sounds.json: \(error)")
       ErrorReporter.shared.report(error)
     }
+  }
+
+  func ingestRemoteMetadata(_ metadata: [ServerSoundMetadata]) {
+    remoteSoundCatalog = metadata
+  }
+
+  func mergedLibraryEntries(bundledData: [SoundData]) -> [SoundLibraryEntry] {
+    var seen = Set<String>()
+    let bundled = bundledData.filter { seen.insert($0.fileName).inserted }.map { SoundLibraryEntry.bundled($0) }
+    let remote = remoteSoundCatalog.filter { seen.insert($0.id).inserted }.map { SoundLibraryEntry.remote($0) }
+    return bundled + remote
   }
 
   private func setupMediaControls() {
@@ -221,14 +249,13 @@ class AudioManager: ObservableObject {
   private func setupNowPlaying() {
     print("🎵 AudioManager: Setting up Now Playing info")
     nowPlayingInfo[MPMediaItemPropertyTitle] = "Ambient Sounds"
-    nowPlayingInfo[MPMediaItemPropertyArtist] = "Blankie"
+    nowPlayingInfo[MPMediaItemPropertyArtist] = "SereneScapes"
 
     if let url = Bundle.main.url(forResource: "NowPlaying", withExtension: "png"),
-      let image = NSImage(contentsOf: url),
-      let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+      let image = UIImage(contentsOfFile: url.path)
     {
       let artwork = MPMediaItemArtwork(boundsSize: image.size) { size in
-        NSImage(cgImage: cgImage, size: size)
+        return image
       }
       nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
     }
@@ -251,18 +278,29 @@ class AudioManager: ObservableObject {
       displayTitle = "Ambient Sounds"
     }
 
-    print("🎵 AudioManager: Updating Now Playing info with title: \(displayTitle)")
+    // Build subtitle from active sound names
+    let activeSoundNames = sounds.filter { $0.isSelected }.map { $0.title }
+    let subtitle: String
+    switch activeSoundNames.count {
+    case 0:
+      subtitle = "SereneScapes"
+    case 1...3:
+      subtitle = activeSoundNames.joined(separator: ", ")
+    default:
+      subtitle = "\(activeSoundNames.prefix(2).joined(separator: ", ")) +\(activeSoundNames.count - 2) more"
+    }
+
+    print("🎵 AudioManager: Updating Now Playing — title: \(displayTitle), subtitle: \(subtitle)")
 
     nowPlayingInfo[MPMediaItemPropertyTitle] = displayTitle
-    nowPlayingInfo[MPMediaItemPropertyArtist] = "Blankie"
+    nowPlayingInfo[MPMediaItemPropertyArtist] = subtitle
     nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isGloballyPlaying ? 1.0 : 0.0
 
     if let url = Bundle.main.url(forResource: "NowPlaying", withExtension: "png"),
-      let image = NSImage(contentsOf: url),
-      let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+      let image = UIImage(contentsOfFile: url.path)
     {
       let artwork = MPMediaItemArtwork(boundsSize: image.size) { size in
-        NSImage(cgImage: cgImage, size: size)
+        return image
       }
       nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
     }
@@ -295,13 +333,99 @@ class AudioManager: ObservableObject {
 
   private func setupNotificationObservers() {
     NotificationCenter.default.addObserver(
-      forName: NSApplication.willTerminateNotification,
+      forName: UIApplication.willTerminateNotification,
       object: nil,
       queue: .main
     ) { [weak self] _ in
       self?.handleAppTermination()
     }
+
+    // Audio interruption handling (phone calls, Siri, alarms, etc.)
+    NotificationCenter.default.addObserver(
+      forName: AVAudioSession.interruptionNotification,
+      object: AVAudioSession.sharedInstance(),
+      queue: .main
+    ) { [weak self] notification in
+      self?.handleInterruption(notification)
+    }
+
+    // Route change handling (headphones unplugged, Bluetooth disconnected)
+    NotificationCenter.default.addObserver(
+      forName: AVAudioSession.routeChangeNotification,
+      object: AVAudioSession.sharedInstance(),
+      queue: .main
+    ) { [weak self] notification in
+      self?.handleRouteChange(notification)
+    }
   }
+
+  /// Track whether we were playing before an interruption so we can resume
+  private var wasPlayingBeforeInterruption = false
+
+  private func handleInterruption(_ notification: Notification) {
+    guard let userInfo = notification.userInfo,
+          let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+          let type = AVAudioSession.InterruptionType(rawValue: typeValue)
+    else { return }
+
+    switch type {
+    case .began:
+      print("🎵 AudioManager: Audio interruption began (phone call, Siri, etc.)")
+      wasPlayingBeforeInterruption = isGloballyPlaying
+      if isGloballyPlaying {
+        Task { @MainActor in
+          self.pauseAll()
+          // Don't change isGloballyPlaying — we want to remember we were playing
+        }
+      }
+
+    case .ended:
+      print("🎵 AudioManager: Audio interruption ended")
+      guard let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt else { return }
+      let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+
+      if options.contains(.shouldResume) && wasPlayingBeforeInterruption {
+        print("🎵 AudioManager: Resuming playback after interruption")
+        Task { @MainActor in
+          // Reactivate the audio session
+          do {
+            try AVAudioSession.sharedInstance().setActive(true)
+          } catch {
+            print("❌ AudioManager: Failed to reactivate audio session: \(error)")
+          }
+          self.setGlobalPlaybackState(true, forceUpdate: true)
+        }
+      }
+      wasPlayingBeforeInterruption = false
+
+    @unknown default:
+      print("🎵 AudioManager: Unknown interruption type")
+    }
+  }
+
+  private func handleRouteChange(_ notification: Notification) {
+    guard let userInfo = notification.userInfo,
+          let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
+          let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue)
+    else { return }
+
+    switch reason {
+    case .oldDeviceUnavailable:
+      // Headphones unplugged or Bluetooth disconnected — pause (standard iOS behavior)
+      print("🎵 AudioManager: Audio route lost (headphones unplugged?) — pausing")
+      Task { @MainActor in
+        self.setGlobalPlaybackState(false)
+      }
+
+    case .newDeviceAvailable:
+      print("🎵 AudioManager: New audio device connected")
+      // Don't auto-resume — let the user decide
+
+    default:
+      break
+    }
+  }
+
   private func handleAppTermination() {
     print("🎵 AudioManager: App is terminating, cleaning up")
     cleanup()
@@ -312,6 +436,7 @@ class AudioManager: ObservableObject {
     MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     print("🎵 AudioManager: Cleanup complete")
   }
+
   func pauseAll() {
     print("🎵 AudioManager: Pausing all sounds")
     print("  - Current global play state: \(isGloballyPlaying)")
@@ -324,6 +449,7 @@ class AudioManager: ObservableObject {
     }
     print("🎵 AudioManager: Pause all complete")
   }
+
   func saveState() {
     let state = sounds.map { sound in
       [
@@ -335,6 +461,7 @@ class AudioManager: ObservableObject {
     }
     UserDefaults.standard.set(state, forKey: "soundState")
   }
+
   /// Toggles the playback state of all selected sounds
   @MainActor func togglePlayback() {
     print("🎵 AudioManager: Toggling playback")

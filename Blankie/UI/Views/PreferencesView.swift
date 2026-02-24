@@ -1,16 +1,19 @@
 //
 //  PreferencesView.swift
-//  Blankie
+//  SereneScapes
 //
 //  Created by Cody Bromley on 1/1/25.
+//  Converted to iOS by SereneScapes team.
 //
 
 import Foundation
 import SwiftUI
+import UIKit
 
 struct PreferencesView: View {
   @ObservedObject private var globalSettings = GlobalSettings.shared
   @State private var showingRestartAlert = false
+  @Environment(\.dismiss) private var dismiss
   private let colorsPerRow = 6
 
   var accentColorForUI: Color {
@@ -18,12 +21,7 @@ struct PreferencesView: View {
   }
 
   var textColorForAccent: Color {
-    if let nsColor = NSColor(accentColorForUI).usingColorSpace(.sRGB) {
-      let brightness =
-        (0.299 * nsColor.redComponent) + (0.587 * nsColor.greenComponent)
-        + (0.114 * nsColor.blueComponent)
-      return brightness > 0.5 ? .black : .white
-    }
+    // Use a simple brightness calculation for iOS
     return .white
   }
 
@@ -104,67 +102,69 @@ struct PreferencesView: View {
       }
     }
     .pickerStyle(.menu)
-    .labelsHidden()
-    .frame(width: 220)
   }
 
   var body: some View {
-    Form {
-      Section {
-        HStack(spacing: 16) {
-          Text("Appearance")
-            .frame(width: 100, alignment: .leading)
-          appearanceButtons
+    NavigationView {
+      Form {
+        Section(header: Text("Appearance")) {
+          VStack(alignment: .leading, spacing: 12) {
+            Text("Theme")
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+            appearanceButtons
+          }
+          .padding(.vertical, 4)
+
+          VStack(alignment: .leading, spacing: 12) {
+            Text("Accent Color")
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+            colorButtons
+          }
+          .padding(.vertical, 4)
+
+          HStack {
+            Text("Language")
+            Spacer()
+            languageMenu
+          }
         }
 
-        HStack(alignment: .top, spacing: 16) {
-          Text("Accent Color")
-            .frame(width: 100, alignment: .leading)
-          colorButtons
-        }
-
-        HStack(spacing: 16) {
-          Text("Language")
-            .frame(width: 100, alignment: .leading)
-          languageMenu
-        }
-      } header: {
-        Text("Appearance")
-      }
-
-      Section {
-        Toggle(
-          LocalizedStringKey("Always Start Paused"),
-          isOn: Binding(
-            get: { globalSettings.alwaysStartPaused },
-            set: { globalSettings.setAlwaysStartPaused($0) }
+        Section(header: Text("Behavior")) {
+          Toggle(
+            LocalizedStringKey("Always Start Paused"),
+            isOn: Binding(
+              get: { globalSettings.alwaysStartPaused },
+              set: { globalSettings.setAlwaysStartPaused($0) }
+            )
           )
-        )
-        .help("If disabled, Blankie will immediately play your most recent preset on launch")
-        .tint(accentColorForUI)
-      } header: {
-        Text("Behavior")
+          .tint(accentColorForUI)
+        }
+      }
+      .navigationTitle("Settings")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .navigationBarTrailing) {
+          Button("Done") {
+            dismiss()
+          }
+        }
       }
     }
-    .formStyle(.grouped)
-    .padding()
-    .frame(width: 500)
-    .onChange(of: globalSettings.needsRestartForLanguageChange) {
-      if globalSettings.needsRestartForLanguageChange {
+    .onChange(of: globalSettings.needsRestartForLanguageChange) { _, newValue in
+      if newValue {
         showingRestartAlert = true
-        globalSettings.needsRestartForLanguageChange = false  // reset
+        globalSettings.needsRestartForLanguageChange = false
       }
     }
     .alert(
       Text("Language Changed"),
       isPresented: $showingRestartAlert
     ) {
-      Button("Restart Now") {
-        Language.restartApp()
-      }
-      Button("Later", role: .cancel) {}
+      Button("OK", role: .cancel) {}
     } message: {
-      Text("You will need to restart Blankie for the language change to take effect.")
+      Text("Please restart the app for the language change to take effect.")
     }
   }
 }
