@@ -18,6 +18,7 @@ class AudioManager: ObservableObject {
   var onReset: (() -> Void)?
 
   @Published var sounds: [Sound] = []
+  @Published private(set) var remoteSoundCatalog: [ServerSoundMetadata] = []
   @Published private(set) var isGloballyPlaying: Bool = false
 
   private let commandCenter = MPRemoteCommandCenter.shared()
@@ -165,6 +166,17 @@ class AudioManager: ObservableObject {
       print("❌ AudioManager: Failed to parse sounds.json: \(error)")
       ErrorReporter.shared.report(error)
     }
+  }
+
+  func ingestRemoteMetadata(_ metadata: [ServerSoundMetadata]) {
+    remoteSoundCatalog = metadata
+  }
+
+  func mergedLibraryEntries(bundledData: [SoundData]) -> [SoundLibraryEntry] {
+    var seen = Set<String>()
+    let bundled = bundledData.filter { seen.insert($0.fileName).inserted }.map { SoundLibraryEntry.bundled($0) }
+    let remote = remoteSoundCatalog.filter { seen.insert($0.id).inserted }.map { SoundLibraryEntry.remote($0) }
+    return bundled + remote
   }
 
   private func setupMediaControls() {

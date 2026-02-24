@@ -96,6 +96,42 @@ final class ContentManagerTests: XCTestCase {
     }
   }
 
+  func testManifestMapsRemoteSoundCatalog() async throws {
+    let session = MockContentSession(mode: .success(manifestWithRemoteSoundsJSON()))
+    let manager = makeManager(session: session)
+
+    let result = try await manager.fetchManifest()
+
+    XCTAssertEqual(result.remoteSoundCatalog.count, 1)
+    XCTAssertEqual(result.remoteSoundCatalog.first?.id, "remote-sound-1")
+    XCTAssertEqual(result.remoteSoundCatalog.first?.downloadState, .notDownloaded)
+  }
+
+  func testMergedLibraryEntriesDeduplicatesOnIdentifiers() async throws {
+    let session = MockContentSession(mode: .success(manifestWithRemoteSoundsJSON()))
+    let manager = makeManager(session: session)
+    let result = try await manager.fetchManifest()
+
+    let bundled = [
+      SoundData(
+        defaultOrder: 0,
+        title: "Rain",
+        systemIconName: "cloud.rain",
+        fileName: "rain",
+        author: "A",
+        authorUrl: nil,
+        license: "ccBy4",
+        editor: nil,
+        editorUrl: nil,
+        soundUrl: "https://example.com/rain",
+        soundName: "Rain"
+      )
+    ]
+
+    let merged = result.manifest.mergedLibraryEntries(with: bundled)
+    XCTAssertEqual(merged.count, 2)
+  }
+
   func testInvalidManifestVersionFailsWithoutCache() async {
     let session = MockContentSession(mode: .success(invalidVersionJSON()))
     let manager = makeManager(session: session)
@@ -131,6 +167,29 @@ final class ContentManagerTests: XCTestCase {
           "id": "\(id)",
           "name": "Primary",
           "baseURL": "https://api.blankie.rest"
+        }
+      ]
+    }
+    """.data(using: .utf8)!
+  }
+
+  private func manifestWithRemoteSoundsJSON() -> Data {
+    """
+    {
+      "schemaVersion": 1,
+      "servers": [
+        {
+          "id": "primary",
+          "name": "Primary",
+          "baseURL": "https://api.blankie.rest",
+          "sounds": [
+            {
+              "id": "remote-sound-1",
+              "title": "Forest Stream",
+              "audioURL": "https://sounds.serenescapes.app/audio/forest-stream.m4a",
+              "thumbnailURL": "https://sounds.serenescapes.app/images/forest-stream-thumb.jpg"
+            }
+          ]
         }
       ]
     }

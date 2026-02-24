@@ -47,6 +47,55 @@ final class AudioManagerTests: XCTestCase {
       audioManager.isGloballyPlaying, "Should not be playing after setting state to false")
   }
 
+  func testIngestRemoteMetadataDoesNotAffectBundledPlaybackArray() async throws {
+    let originalCount = audioManager.sounds.count
+
+    let remote = ServerSoundMetadata(
+      id: "remote-1",
+      title: "Forest Stream",
+      remoteAudioURL: URL(string: "https://sounds.serenescapes.app/audio/forest-stream.m4a")!,
+      sourceServerID: "primary"
+    )
+
+    audioManager.ingestRemoteMetadata([remote])
+
+    XCTAssertEqual(audioManager.sounds.count, originalCount)
+    XCTAssertEqual(audioManager.remoteSoundCatalog.count, 1)
+    XCTAssertEqual(audioManager.remoteSoundCatalog.first?.id, "remote-1")
+  }
+
+  func testMergedLibraryEntriesCombinesBundledAndRemoteWithoutChangingPlaybackSounds() async throws {
+    let bundled = [
+      SoundData(
+        defaultOrder: 0,
+        title: "Rain",
+        systemIconName: "cloud.rain",
+        fileName: "rain",
+        author: "A",
+        authorUrl: nil,
+        license: "ccBy4",
+        editor: nil,
+        editorUrl: nil,
+        soundUrl: "https://example.com/rain",
+        soundName: "Rain"
+      )
+    ]
+
+    audioManager.ingestRemoteMetadata([
+      ServerSoundMetadata(
+        id: "remote-2",
+        title: "Ocean",
+        remoteAudioURL: URL(string: "https://sounds.serenescapes.app/audio/ocean.m4a")!,
+        sourceServerID: "primary"
+      )
+    ])
+
+    let merged = audioManager.mergedLibraryEntries(bundledData: bundled)
+
+    XCTAssertEqual(merged.count, 2)
+    XCTAssertEqual(audioManager.sounds.contains(where: { $0.fileName == "ocean" }), false)
+  }
+
   func testResetSounds() async throws {
     // Select some sounds and adjust volumes
     audioManager.sounds[0].isSelected = true

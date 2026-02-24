@@ -19,6 +19,10 @@ struct ManifestFetchResult {
   let manifest: ServerManifest
   let source: ManifestSource
   let warning: ManifestFetchWarning?
+
+  var remoteSoundCatalog: [ServerSoundMetadata] {
+    manifest.remoteSoundCatalog()
+  }
 }
 
 enum ContentManagerError: Error, Equatable {
@@ -118,5 +122,34 @@ final class ContentManager {
     let directory = cacheFileURL.deletingLastPathComponent()
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     try data.write(to: cacheFileURL, options: .atomic)
+  }
+}
+
+extension ServerManifest {
+  func remoteSoundCatalog() -> [ServerSoundMetadata] {
+    servers.flatMap { server in
+      server.sounds.map {
+        ServerSoundMetadata(
+          id: $0.id,
+          title: $0.title,
+          remoteAudioURL: $0.audioURL,
+          sourceServerID: server.identifier,
+          thumbnailURL: $0.thumbnailURL,
+          heroImageURL: $0.heroImageURL,
+          metadata: $0.metadata,
+          downloadState: .notDownloaded
+        )
+      }
+    }
+  }
+
+  func mergedLibraryEntries(with bundled: [SoundData]) -> [SoundLibraryEntry] {
+    let remote = remoteSoundCatalog()
+    var seen = Set<String>()
+
+    let bundledEntries = bundled.filter { seen.insert($0.fileName).inserted }.map { SoundLibraryEntry.bundled($0) }
+    let remoteEntries = remote.filter { seen.insert($0.id).inserted }.map { SoundLibraryEntry.remote($0) }
+
+    return bundledEntries + remoteEntries
   }
 }
