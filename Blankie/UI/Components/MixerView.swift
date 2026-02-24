@@ -123,17 +123,33 @@ struct MixerView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
                         ForEach(userPresets) { preset in
+                            let localCount = preset.soundStates.filter { $0.isSelected }.count
+                            let remoteCount = preset.remoteStates.filter { $0.isSelected }.count
+                            let isCurrent = preset.id == presetManager.currentPreset?.id
+
                             Button {
                                 playBlend(preset)
                             } label: {
                                 VStack(alignment: .leading, spacing: 6) {
-                                    Text(preset.name)
-                                        .font(.subheadline.weight(.semibold))
-                                        .lineLimit(1)
+                                    HStack {
+                                        Text(preset.name)
+                                            .font(.subheadline.weight(.semibold))
+                                            .lineLimit(1)
+                                        Spacer()
+                                        if isCurrent {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundStyle(.green)
+                                        }
+                                    }
+
+                                    Text("\(localCount) bundled • \(remoteCount) remote")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+
                                     Label("Play Blend", systemImage: "play.fill")
                                         .font(.caption)
                                 }
-                                .frame(width: 150, alignment: .leading)
+                                .frame(width: 170, alignment: .leading)
                                 .padding(10)
                                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
                             }
@@ -222,9 +238,22 @@ struct MixerView: View {
                     .foregroundStyle(.secondary)
                     .font(.caption)
             } else {
-                Text("Selected remote tracks: \(audioManager.selectedRemoteTrackIDs.count)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack {
+                    Text("Selected remote tracks: \(audioManager.selectedRemoteTrackIDs.count)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    if !audioManager.selectedRemoteTrackIDs.isEmpty {
+                        Button("Clear") {
+                            Task { @MainActor in
+                                for id in Array(audioManager.selectedRemoteTrackIDs) {
+                                    audioManager.setRemoteTrackSelected(id: id, isSelected: false)
+                                }
+                            }
+                        }
+                        .font(.caption)
+                    }
+                }
 
                 ForEach(downloaded, id: \.id) { item in
                     let mix = audioManager.remoteMixSettings(for: item.id)
@@ -450,7 +479,10 @@ struct MixerView: View {
         do {
             try presetManager.applyPreset(preset)
             audioManager.setPlaybackState(true)
-            workflowMessage = "Playing blend: \(preset.name)"
+
+            let localCount = preset.soundStates.filter { $0.isSelected }.count
+            let remoteCount = preset.remoteStates.filter { $0.isSelected }.count
+            workflowMessage = "Playing blend: \(preset.name) (\(localCount) bundled, \(remoteCount) remote)"
         } catch {
             workflowMessage = "Could not play blend: \(preset.name)"
         }
