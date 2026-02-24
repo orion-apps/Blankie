@@ -14,7 +14,7 @@ _Last updated: 2026-02-24_
 | Sleep timer | Timer + fade + UX controls | Implemented + polished | None (for current scope) | Done | Keep regression coverage |
 | Manifest/content model | Remote manifest + cache/fallback | Base model + caching merged | Retry/timeout/error telemetry parity | High | Harden network policy + tests |
 | Image packs in player | Player visuals use image assets/packs | Gradient-based player in Blankie | No image-pack-driven player background parity | Critical | Add image-aware player background path (start now) |
-| Ken Burns in single-sound player | Present in SereneScapes | Not parity | Missing immersive visual behavior | High | Implement Ken Burns/slideshow for single player |
+| Ken Burns in single-sound player | Present in SereneScapes | 🚧 Implemented foundation in Blankie player | Validate behavior against SereneScapes timing/feel | High | Tune animation presets + QA on device |
 | Mixer/blends workflow | Studio + saved blends + blend player | Core mixer UI exists | Parity validation incomplete | High | Build parity checklist and close gaps |
 | Library/download UX | Downloaded/available + server workflows | Partial foundations | Progress/management parity gaps | Medium | Align UX and state handling |
 | Built-in fallback mode | Reliable bundled content fallback | Partially implied | Explicit mode/state not surfaced | High | Add built-in only / hybrid mode signaling |
