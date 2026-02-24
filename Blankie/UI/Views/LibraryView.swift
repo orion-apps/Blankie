@@ -14,6 +14,16 @@ struct LibraryView: View {
         return audioManager.remoteSoundCatalog.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
     }
 
+    private func statusLabel(_ state: AudioManager.RemoteDownloadState) -> String {
+        switch state {
+        case .notDownloaded: return "Not downloaded"
+        case .queued: return "Queued"
+        case .downloading: return "Downloading"
+        case .completed: return "Completed"
+        case .failed: return "Failed"
+        }
+    }
+
     var body: some View {
         List {
             Section("Catalog Status") {
@@ -70,12 +80,59 @@ struct LibraryView: View {
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(remote, id: \.id) { item in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.title)
-                            Text(item.sourceServerID)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                        let status = audioManager.downloadStatus(for: item.id)
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.title)
+                                    Text(item.sourceServerID)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Text(statusLabel(status.state))
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if status.state == .queued || status.state == .downloading {
+                                ProgressView(value: status.progress)
+                            }
+
+                            HStack(spacing: 10) {
+                                switch status.state {
+                                case .notDownloaded:
+                                    Button("Download") {
+                                        Task { @MainActor in
+                                            audioManager.startRemoteDownload(id: item.id)
+                                        }
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                case .queued, .downloading:
+                                    Button("Mark Failed") {
+                                        Task { @MainActor in
+                                            audioManager.failRemoteDownloadForDebug(id: item.id)
+                                        }
+                                    }
+                                    .buttonStyle(.bordered)
+                                case .failed:
+                                    Button("Retry") {
+                                        Task { @MainActor in
+                                            audioManager.retryRemoteDownload(id: item.id)
+                                        }
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                case .completed:
+                                    Button("Remove") {
+                                        Task { @MainActor in
+                                            audioManager.removeRemoteDownload(id: item.id)
+                                        }
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+                            }
                         }
+                        .padding(.vertical, 4)
                     }
                 }
             }

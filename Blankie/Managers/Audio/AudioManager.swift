@@ -13,6 +13,20 @@ import SwiftUI
 import UIKit
 
 class AudioManager: ObservableObject {
+  enum RemoteDownloadState: String, Codable {
+    case notDownloaded
+    case queued
+    case downloading
+    case completed
+    case failed
+  }
+
+  struct RemoteDownloadStatus: Codable {
+    var state: RemoteDownloadState
+    var progress: Double
+    var updatedAt: Date
+  }
+
   private var cancellables = Set<AnyCancellable>()
   static let shared = AudioManager()
   var onReset: (() -> Void)?
@@ -22,11 +36,14 @@ class AudioManager: ObservableObject {
   @Published private(set) var isGloballyPlaying: Bool = false
   @Published private(set) var isRefreshingCatalog: Bool = false
   @Published private(set) var lastCatalogSourceLabel: String = "none"
+  @Published private(set) var remoteDownloadStatus: [String: RemoteDownloadStatus] = [:]
 
   private let commandCenter = MPRemoteCommandCenter.shared()
   private var nowPlayingInfo: [String: Any] = [:]
   private var isInitializing = true
   private let contentManager = ContentManager()
+  private var remoteDownloadTasks: [String: Task<Void, Never>] = [:]
+  private let remoteDownloadStatusKey = "remoteDownloadStatus"
 
   private init() {
     print("🎵 AudioManager: Initializing")
@@ -37,6 +54,7 @@ class AudioManager: ObservableObject {
     setupMediaControls()
     setupNotificationObservers()
     setupSoundObservers()
+    loadRemoteDownloadStatus()
 
     // Handle autoplay behavior after a slight delay to ensure proper initialization
     Task { @MainActor in
@@ -221,6 +239,76 @@ class AudioManager: ObservableObject {
     let bundled = bundledData.filter { seen.insert($0.fileName).inserted }.map { SoundLibraryEntry.bundled($0) }
     let remote = remoteSoundCatalog.filter { seen.insert($0.id).inserted }.map { SoundLibraryEntry.remote($0) }
     return bundled + remote
+  }
+
+  func downloadStatus(for remoteID: String) -> RemoteDownloadStatus {
+    remoteDownloadStatus[remoteID] ?? RemoteDownloadStatus(state: .notDownloaded, progress: 0, updatedAt: Date())
+  }
+
+  @MainActor
+  func startRemoteDownload(id: String) {
+    remoteDownloadTasks[id]?.cancel()
+    updateRemoteDownload(id: id, state: .queued, progress: 0)
+
+    let task = Task { [weak self] in
+      guard let self else { return }
+      try? await Task.sleep(nanoseconds: 300_000_000)
+      await MainActor.run { self.updateRemoteDownload(id: id, state: .downloading, progress: 0.05) }
+
+      for step in 1...12 {
+        if Task.isCancelled { return }
+        try? await Task.sleep(nanoseconds: 250_000_000)
+        let progress = min(Double(step) / 12.0, 1.0)
+        await MainActor.run {
+          self.updateRemoteDownload(id: id, state: .downloading, progress: progress)
+        }
+      }
+
+      await MainActor.run {
+        self.updateRemoteDownload(id: id, state: .completed, progress: 1.0)
+        self.remoteDownloadTasks[id] = nil
+      }
+    }
+
+    remoteDownloadTasks[id] = task
+  }
+
+  @MainActor
+  func retryRemoteDownload(id: String) {
+    startRemoteDownload(id: id)
+  }
+
+  @MainActor
+  func removeRemoteDownload(id: String) {
+    remoteDownloadTasks[id]?.cancel()
+    remoteDownloadTasks[id] = nil
+    updateRemoteDownload(id: id, state: .notDownloaded, progress: 0)
+  }
+
+  @MainActor
+  func failRemoteDownloadForDebug(id: String) {
+    remoteDownloadTasks[id]?.cancel()
+    remoteDownloadTasks[id] = nil
+    updateRemoteDownload(id: id, state: .failed, progress: 0)
+  }
+
+  @MainActor
+  private func updateRemoteDownload(id: String, state: RemoteDownloadState, progress: Double) {
+    remoteDownloadStatus[id] = RemoteDownloadStatus(state: state, progress: progress, updatedAt: Date())
+    persistRemoteDownloadStatus()
+  }
+
+  private func persistRemoteDownloadStatus() {
+    guard let data = try? JSONEncoder().encode(remoteDownloadStatus) else { return }
+    UserDefaults.standard.set(data, forKey: remoteDownloadStatusKey)
+  }
+
+  private func loadRemoteDownloadStatus() {
+    guard let data = UserDefaults.standard.data(forKey: remoteDownloadStatusKey),
+          let decoded = try? JSONDecoder().decode([String: RemoteDownloadStatus].self, from: data) else {
+      return
+    }
+    remoteDownloadStatus = decoded
   }
 
   private func setupMediaControls() {
