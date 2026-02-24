@@ -63,6 +63,23 @@ class SleepTimer: ObservableObject {
         print("⏱️ SleepTimer: Started for \(seconds)s, ends at \(end)")
     }
 
+    /// Extend a running timer by N minutes. If no timer is running, starts one.
+    @MainActor
+    func extend(byMinutes minutes: Int) {
+        let delta = max(minutes * 60, 60)
+
+        if let currentEnd = endDate, isRunning {
+            let newEnd = currentEnd.addingTimeInterval(TimeInterval(delta))
+            endDate = newEnd
+            let remaining = max(Int(newEnd.timeIntervalSinceNow), 1)
+            remainingSeconds = remaining
+            UserDefaults.standard.set(newEnd.timeIntervalSince1970, forKey: endDateKey)
+            print("⏱️ SleepTimer: Extended by \(minutes)m, new end: \(newEnd)")
+        } else {
+            start(duration: TimeInterval(delta))
+        }
+    }
+
     /// Cancel the timer and restore volume if mid-fade.
     @MainActor
     func cancel() {
@@ -99,6 +116,15 @@ class SleepTimer: ObservableObject {
             return String(format: "%d:%02d:%02d", h, m, s)
         }
         return String(format: "%d:%02d", m, s)
+    }
+
+    /// Formatted end-time string for UI, e.g. "Ends at 11:45 PM"
+    var endTimeString: String? {
+        guard let endDate else { return nil }
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        return "Ends at \(formatter.string(from: endDate))"
     }
 
     // MARK: - Internals
