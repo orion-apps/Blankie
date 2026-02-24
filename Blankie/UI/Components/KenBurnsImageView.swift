@@ -10,15 +10,40 @@ struct KenBurnsImageView: View {
     @State private var frontOpacity: Double = 1
     @State private var backOpacity: Double = 0
 
-    @State private var frontScale: CGFloat = 1.12
-    @State private var backScale: CGFloat = 1.12
+    @State private var frontScale: CGFloat = 1.15
+    @State private var backScale: CGFloat = 1.15
     @State private var frontOffset: CGSize = .zero
     @State private var backOffset: CGSize = .zero
 
     @State private var timer: Timer?
+    @State private var lastPresetIndex: Int = -1
 
-    private let imageDuration: TimeInterval = 8
-    private let crossfadeDuration: TimeInterval = 1.8
+    private let imageDuration: TimeInterval = 8.0
+    private let crossfadeDuration: TimeInterval = 2.0
+
+    private enum Preset: CaseIterable {
+        case panLeftToRight, panRightToLeft, zoomInCenter, panDiagonalDown, panDiagonalUp
+
+        var start: (CGFloat, CGSize) {
+            switch self {
+            case .panLeftToRight: return (1.20, CGSize(width: 160, height: 0))
+            case .panRightToLeft: return (1.20, CGSize(width: -160, height: 0))
+            case .zoomInCenter: return (1.10, CGSize(width: 0, height: 8))
+            case .panDiagonalDown: return (1.20, CGSize(width: 100, height: 45))
+            case .panDiagonalUp: return (1.20, CGSize(width: -100, height: -45))
+            }
+        }
+
+        var end: (CGFloat, CGSize) {
+            switch self {
+            case .panLeftToRight: return (1.26, CGSize(width: -160, height: 0))
+            case .panRightToLeft: return (1.26, CGSize(width: 160, height: 0))
+            case .zoomInCenter: return (1.34, CGSize(width: 0, height: -8))
+            case .panDiagonalDown: return (1.26, CGSize(width: -100, height: -45))
+            case .panDiagonalUp: return (1.26, CGSize(width: 100, height: 45))
+            }
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -27,18 +52,10 @@ struct KenBurnsImageView: View {
             layer(index: frontIndex, scale: frontScale, offset: frontOffset)
                 .opacity(frontOpacity)
         }
-        .onAppear {
-            startIfNeeded()
-        }
-        .onDisappear {
-            timer?.invalidate()
-        }
-        .onChange(of: isActive) { _, _ in
-            startIfNeeded()
-        }
-        .onChange(of: imageNames) { _, _ in
-            startIfNeeded()
-        }
+        .onAppear { startIfNeeded() }
+        .onDisappear { timer?.invalidate() }
+        .onChange(of: isActive) { _, _ in startIfNeeded() }
+        .onChange(of: imageNames) { _, _ in startIfNeeded() }
     }
 
     @ViewBuilder
@@ -60,6 +77,25 @@ struct KenBurnsImageView: View {
         return imageNames[index % imageNames.count]
     }
 
+    private func pickPreset() -> Preset {
+        var candidates = Array(Preset.allCases.indices).filter { $0 != lastPresetIndex }
+        if candidates.isEmpty { candidates = Array(Preset.allCases.indices) }
+        let idx = candidates.randomElement() ?? 0
+        lastPresetIndex = idx
+        return Preset.allCases[idx]
+    }
+
+    private func apply(_ preset: Preset, toFront: Bool, start: Bool) {
+        let state = start ? preset.start : preset.end
+        if toFront {
+            frontScale = state.0
+            frontOffset = state.1
+        } else {
+            backScale = state.0
+            backOffset = state.1
+        }
+    }
+
     private func startIfNeeded() {
         timer?.invalidate()
 
@@ -76,10 +112,16 @@ struct KenBurnsImageView: View {
         frontOpacity = 1
         backOpacity = 0
 
-        applyRandomMotion(toFront: true)
-        animateFrontLayer()
+        let frontPreset = pickPreset()
+        apply(frontPreset, toFront: true, start: true)
+        withAnimation(.easeInOut(duration: imageDuration)) {
+            apply(frontPreset, toFront: true, start: false)
+        }
 
         guard imageNames.count > 1 else { return }
+
+        let backPreset = pickPreset()
+        apply(backPreset, toFront: false, start: true)
 
         timer = Timer.scheduledTimer(withTimeInterval: imageDuration, repeats: true) { _ in
             withAnimation(.easeInOut(duration: crossfadeDuration)) {
@@ -87,45 +129,26 @@ struct KenBurnsImageView: View {
                 backOpacity = 1
             }
 
-            animateBackLayer()
+            let activeBackPreset = Preset.allCases[lastPresetIndex]
+            withAnimation(.easeInOut(duration: imageDuration)) {
+                apply(activeBackPreset, toFront: false, start: false)
+            }
 
             DispatchQueue.main.asyncAfter(deadline: .now() + crossfadeDuration) {
                 frontIndex = (backIndex + 1) % imageNames.count
                 frontOpacity = 1
                 backOpacity = 0
-                applyRandomMotion(toFront: true)
-                animateFrontLayer()
 
-                let nextBack = (frontIndex + 1) % imageNames.count
-                backIndex = nextBack
-                applyRandomMotion(toFront: false)
+                let nextFront = pickPreset()
+                apply(nextFront, toFront: true, start: true)
+                withAnimation(.easeInOut(duration: imageDuration)) {
+                    apply(nextFront, toFront: true, start: false)
+                }
+
+                backIndex = (frontIndex + 1) % imageNames.count
+                let nextBack = pickPreset()
+                apply(nextBack, toFront: false, start: true)
             }
-        }
-    }
-
-    private func animateFrontLayer() {
-        withAnimation(.easeInOut(duration: imageDuration + crossfadeDuration)) {
-            frontScale += 0.08
-            frontOffset = CGSize(width: -frontOffset.width, height: -frontOffset.height)
-        }
-    }
-
-    private func animateBackLayer() {
-        withAnimation(.easeInOut(duration: imageDuration + crossfadeDuration)) {
-            backScale += 0.08
-            backOffset = CGSize(width: -backOffset.width, height: -backOffset.height)
-        }
-    }
-
-    private func applyRandomMotion(toFront: Bool) {
-        let baseScale = CGFloat.random(in: 1.10...1.22)
-        let offset = CGSize(width: CGFloat.random(in: -120...120), height: CGFloat.random(in: -50...50))
-        if toFront {
-            frontScale = baseScale
-            frontOffset = offset
-        } else {
-            backScale = baseScale
-            backOffset = offset
         }
     }
 }
