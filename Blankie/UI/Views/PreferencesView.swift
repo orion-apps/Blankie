@@ -12,6 +12,7 @@ import UIKit
 
 struct PreferencesView: View {
   @ObservedObject private var globalSettings = GlobalSettings.shared
+  @ObservedObject private var appState = AppState.shared
   @State private var showingRestartAlert = false
   @Environment(\.dismiss) private var dismiss
   private let colorsPerRow = 6
@@ -104,6 +105,14 @@ struct PreferencesView: View {
     .pickerStyle(.menu)
   }
 
+  private func levelColor(_ level: AppState.ContentTelemetryLevel) -> Color {
+    switch level {
+    case .info: return .blue
+    case .warning: return .orange
+    case .error: return .red
+    }
+  }
+
   var body: some View {
     NavigationView {
       Form {
@@ -140,6 +149,42 @@ struct PreferencesView: View {
             )
           )
           .tint(accentColorForUI)
+        }
+
+        Section(header: Text("Content Status")) {
+          HStack {
+            Circle()
+              .fill(appState.contentMode == .hybrid ? Color.green : Color.orange)
+              .frame(width: 8, height: 8)
+            Text(appState.contentMode == .hybrid ? "Built-in + Online" : "Built-in Only")
+            Spacer()
+          }
+
+          Text(appState.contentStatusMessage)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+
+          if appState.contentTelemetry.isEmpty {
+            Text("No recent content events")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          } else {
+            ForEach(appState.contentTelemetry.prefix(10)) { event in
+              VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                  Text(event.level.rawValue.uppercased())
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(levelColor(event.level))
+                  Text(event.timestamp.formatted(date: .omitted, time: .standard))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                }
+                Text(event.message)
+                  .font(.caption)
+              }
+              .padding(.vertical, 2)
+            }
+          }
         }
       }
       .navigationTitle("Settings")
