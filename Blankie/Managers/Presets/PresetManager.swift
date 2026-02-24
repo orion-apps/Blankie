@@ -23,6 +23,7 @@ class PresetManager: ObservableObject {
   @Published private(set) var hasCustomPresets: Bool = false
   @Published private(set) var isLoading: Bool = true
   @Published private(set) var error: Error?
+  @Published private(set) var lastApplyWarning: String?
 
   private var cancellables = Set<AnyCancellable>()
   private var isInitialLoad = true
@@ -252,6 +253,7 @@ class PresetManager: ObservableObject {
 
     let targetStates = preset.soundStates
     let wasPlaying = AudioManager.shared.isGloballyPlaying
+    var missingSoundFiles: [String] = []
 
     // Update current preset before any audio changes
     currentPreset = preset
@@ -284,11 +286,24 @@ class PresetManager: ObservableObject {
             sound.isSelected = state.isSelected
             sound.volume = state.volume
           }
+        } else {
+          missingSoundFiles.append(state.fileName)
         }
       }
 
       // Wait a bit for states to settle
       try? await Task.sleep(nanoseconds: 100_000_000)
+
+      if !missingSoundFiles.isEmpty {
+        let missing = missingSoundFiles.sorted().joined(separator: ", ")
+        await MainActor.run {
+          self.lastApplyWarning = "Some sounds were unavailable and skipped: \(missing)"
+        }
+      } else {
+        await MainActor.run {
+          self.lastApplyWarning = nil
+        }
+      }
 
       if wasPlaying || (isInitialLoad && !GlobalSettings.shared.alwaysStartPaused) {
         if targetStates.contains(where: { $0.isSelected }) {

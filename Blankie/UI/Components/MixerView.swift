@@ -15,7 +15,10 @@ struct MixerView: View {
 
     @State private var showSavePreset = false
     @State private var showSleepTimer = false
+    @State private var showRenamePreset = false
     @State private var presetName = ""
+    @State private var renamePresetName = ""
+    @State private var presetToRename: Preset?
     @State private var workflowMessage: String?
     @AppStorage("mixerSingleSoloMode") private var singleSoloMode = true
 
@@ -59,6 +62,21 @@ struct MixerView: View {
                 Button("OK", role: .cancel) { workflowMessage = nil }
             } message: {
                 Text(workflowMessage ?? "")
+            }
+            .alert("Rename Preset", isPresented: $showRenamePreset) {
+                TextField("Preset name", text: $renamePresetName)
+                Button("Save") {
+                    if let preset = presetToRename, !renamePresetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        presetManager.updatePreset(preset, newName: renamePresetName)
+                        workflowMessage = "Preset renamed"
+                    }
+                    presetToRename = nil
+                    renamePresetName = ""
+                }
+                Button("Cancel", role: .cancel) {
+                    presetToRename = nil
+                    renamePresetName = ""
+                }
             }
             .sheet(isPresented: $showSleepTimer) {
                 SleepTimerSheet()
@@ -163,6 +181,12 @@ struct MixerView: View {
 
     private var presetsSection: some View {
         Section("Presets") {
+            if let warning = presetManager.lastApplyWarning {
+                Label(warning, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+
             if let current = presetManager.currentPreset, !current.isDefault {
                 HStack {
                     Image(systemName: "music.note.list")
@@ -201,6 +225,16 @@ struct MixerView: View {
                     Image(systemName: "checkmark")
                         .foregroundStyle(Color.accentColor)
                 }
+            }
+        }
+        .contextMenu {
+            Button("Rename") {
+                presetToRename = preset
+                renamePresetName = preset.name
+                showRenamePreset = true
+            }
+            Button("Delete", role: .destructive) {
+                presetManager.deletePreset(preset)
             }
         }
     }

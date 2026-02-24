@@ -19,8 +19,8 @@ Validate Blankie mixer/blend behavior against SereneScapes expectations and clos
 ### B) Track controls
 - [ ] Add/remove tracks dynamically
 - [x] Per-track volume control
-- [ ] Per-track pan control parity (SereneScapes has explicit pan UX)
-- [ ] Solo/mute semantics parity
+- [x] Per-track pan control parity (SereneScapes has explicit pan UX)
+- [x] Solo/mute semantics parity (single/multi-solo modes + clear solo)
 - [ ] Per-track play/pause parity
 
 ### C) Playback/session behavior

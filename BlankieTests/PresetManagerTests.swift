@@ -106,4 +106,26 @@ final class PresetManagerTests: XCTestCase {
       XCTAssertEqual(firstState.volume, 0.42, accuracy: 0.001)
     }
   }
+
+  func testApplyPresetWarnsForMissingSoundFiles() async throws {
+    let preset = Preset(
+      id: UUID(),
+      name: "Broken",
+      soundStates: [
+        PresetState(fileName: "definitely_missing_sound", isSelected: true, volume: 1.0)
+      ],
+      isDefault: false
+    )
+
+    await MainActor.run {
+      try? presetManager.applyPreset(preset)
+    }
+
+    try? await Task.sleep(nanoseconds: 250_000_000)
+
+    await MainActor.run {
+      XCTAssertNotNil(presetManager.lastApplyWarning)
+      XCTAssertTrue(presetManager.lastApplyWarning?.contains("definitely_missing_sound") == true)
+    }
+  }
 }
