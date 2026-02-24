@@ -10,11 +10,13 @@ import SwiftUI
 struct PlayerView: View {
     @ObservedObject private var audioManager = AudioManager.shared
     @ObservedObject private var globalSettings = GlobalSettings.shared
+    @ObservedObject private var sleepTimer = SleepTimer.shared
 
     @Environment(\.dismiss) private var dismiss
 
     @State private var showControls = true
     @State private var isLocked = false
+    @State private var showSleepTimerSheet = false
     @State private var controlsTimer: Timer?
     @State private var gradientPhase: CGFloat = 0
 
@@ -105,6 +107,30 @@ struct PlayerView: View {
                 }
 
                 Spacer()
+
+                // Sleep timer button
+                Button {
+                    showSleepTimerSheet = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: sleepTimer.isRunning ? "moon.fill" : "moon")
+                            .font(.system(size: 14))
+                        if sleepTimer.isRunning {
+                            Text(sleepTimer.displayString)
+                                .font(.caption.weight(.medium).monospacedDigit())
+                        } else {
+                            Text("Sleep")
+                                .font(.caption.weight(.medium))
+                        }
+                    }
+                    .foregroundStyle(.white.opacity(0.8))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(.ultraThinMaterial))
+                }
+                .sheet(isPresented: $showSleepTimerSheet) {
+                    SleepTimerSheet()
+                }
 
                 Button {
                     withAnimation(.spring(response: 0.3)) {

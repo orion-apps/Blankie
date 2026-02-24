@@ -266,10 +266,22 @@ class AudioManager: ObservableObject {
       displayTitle = "Ambient Sounds"
     }
 
-    print("🎵 AudioManager: Updating Now Playing info with title: \(displayTitle)")
+    // Build subtitle from active sound names
+    let activeSoundNames = sounds.filter { $0.isSelected }.map { $0.title }
+    let subtitle: String
+    switch activeSoundNames.count {
+    case 0:
+      subtitle = "SereneScapes"
+    case 1...3:
+      subtitle = activeSoundNames.joined(separator: ", ")
+    default:
+      subtitle = "\(activeSoundNames.prefix(2).joined(separator: ", ")) +\(activeSoundNames.count - 2) more"
+    }
+
+    print("🎵 AudioManager: Updating Now Playing — title: \(displayTitle), subtitle: \(subtitle)")
 
     nowPlayingInfo[MPMediaItemPropertyTitle] = displayTitle
-    nowPlayingInfo[MPMediaItemPropertyArtist] = "SereneScapes"
+    nowPlayingInfo[MPMediaItemPropertyArtist] = subtitle
     nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isGloballyPlaying ? 1.0 : 0.0
 
     if let url = Bundle.main.url(forResource: "NowPlaying", withExtension: "png"),
@@ -314,6 +326,91 @@ class AudioManager: ObservableObject {
       queue: .main
     ) { [weak self] _ in
       self?.handleAppTermination()
+    }
+
+    // Audio interruption handling (phone calls, Siri, alarms, etc.)
+    NotificationCenter.default.addObserver(
+      forName: AVAudioSession.interruptionNotification,
+      object: AVAudioSession.sharedInstance(),
+      queue: .main
+    ) { [weak self] notification in
+      self?.handleInterruption(notification)
+    }
+
+    // Route change handling (headphones unplugged, Bluetooth disconnected)
+    NotificationCenter.default.addObserver(
+      forName: AVAudioSession.routeChangeNotification,
+      object: AVAudioSession.sharedInstance(),
+      queue: .main
+    ) { [weak self] notification in
+      self?.handleRouteChange(notification)
+    }
+  }
+
+  /// Track whether we were playing before an interruption so we can resume
+  private var wasPlayingBeforeInterruption = false
+
+  private func handleInterruption(_ notification: Notification) {
+    guard let userInfo = notification.userInfo,
+          let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+          let type = AVAudioSession.InterruptionType(rawValue: typeValue)
+    else { return }
+
+    switch type {
+    case .began:
+      print("🎵 AudioManager: Audio interruption began (phone call, Siri, etc.)")
+      wasPlayingBeforeInterruption = isGloballyPlaying
+      if isGloballyPlaying {
+        Task { @MainActor in
+          self.pauseAll()
+          // Don't change isGloballyPlaying — we want to remember we were playing
+        }
+      }
+
+    case .ended:
+      print("🎵 AudioManager: Audio interruption ended")
+      guard let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt else { return }
+      let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+
+      if options.contains(.shouldResume) && wasPlayingBeforeInterruption {
+        print("🎵 AudioManager: Resuming playback after interruption")
+        Task { @MainActor in
+          // Reactivate the audio session
+          do {
+            try AVAudioSession.sharedInstance().setActive(true)
+          } catch {
+            print("❌ AudioManager: Failed to reactivate audio session: \(error)")
+          }
+          self.setGlobalPlaybackState(true, forceUpdate: true)
+        }
+      }
+      wasPlayingBeforeInterruption = false
+
+    @unknown default:
+      print("🎵 AudioManager: Unknown interruption type")
+    }
+  }
+
+  private func handleRouteChange(_ notification: Notification) {
+    guard let userInfo = notification.userInfo,
+          let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
+          let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue)
+    else { return }
+
+    switch reason {
+    case .oldDeviceUnavailable:
+      // Headphones unplugged or Bluetooth disconnected — pause (standard iOS behavior)
+      print("🎵 AudioManager: Audio route lost (headphones unplugged?) — pausing")
+      Task { @MainActor in
+        self.setGlobalPlaybackState(false)
+      }
+
+    case .newDeviceAvailable:
+      print("🎵 AudioManager: New audio device connected")
+      // Don't auto-resume — let the user decide
+
+    default:
+      break
     }
   }
 

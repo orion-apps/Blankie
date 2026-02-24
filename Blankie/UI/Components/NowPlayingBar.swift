@@ -8,9 +8,11 @@ import SwiftUI
 struct NowPlayingBar: View {
     @ObservedObject private var audioManager = AudioManager.shared
     @ObservedObject private var globalSettings = GlobalSettings.shared
+    @ObservedObject private var sleepTimer = SleepTimer.shared
 
     @Binding var showMixer: Bool
     @Binding var showPlayer: Bool
+    @State private var showSleepTimer = false
 
     private var activeSoundCount: Int {
         audioManager.sounds.filter { $0.isSelected }.count
@@ -58,6 +60,29 @@ struct NowPlayingBar: View {
             ), in: 0...1)
             .tint(.accentColor)
             .frame(width: 80)
+
+            // Sleep timer button
+            Button {
+                showSleepTimer = true
+            } label: {
+                ZStack {
+                    Image(systemName: sleepTimer.isRunning ? "moon.fill" : "moon")
+                        .font(.system(size: 14))
+                        .foregroundStyle(sleepTimer.isRunning ? .accent : .secondary)
+
+                    if sleepTimer.isRunning {
+                        Text(sleepTimer.displayString)
+                            .font(.system(size: 7, weight: .medium, design: .rounded))
+                            .foregroundStyle(.secondary)
+                            .offset(y: 14)
+                    }
+                }
+                .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+            .sheet(isPresented: $showSleepTimer) {
+                SleepTimerSheet()
+            }
 
             // Lock/Player button
             Button {
