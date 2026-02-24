@@ -12,7 +12,7 @@ class SleepTimer: ObservableObject {
     static let shared = SleepTimer()
 
     /// Available durations in minutes
-    static let presets: [Int] = [15, 30, 45, 60, 90, 120]
+    static let presets: [Int] = [5, 30, 60]
 
     /// Whether the timer is currently running
     @Published private(set) var isRunning = false
@@ -43,17 +43,24 @@ class SleepTimer: ObservableObject {
     /// Start (or restart) the timer with the given duration in minutes.
     @MainActor
     func start(minutes: Int) {
+        start(duration: TimeInterval(minutes * 60))
+    }
+
+    /// Start (or restart) timer with custom duration in seconds.
+    @MainActor
+    func start(duration: TimeInterval) {
         cancel() // clear any existing timer
 
-        let end = Date().addingTimeInterval(TimeInterval(minutes * 60))
+        let seconds = max(Int(duration.rounded()), 60)
+        let end = Date().addingTimeInterval(TimeInterval(seconds))
         endDate = end
         UserDefaults.standard.set(end.timeIntervalSince1970, forKey: endDateKey)
 
         isRunning = true
-        remainingSeconds = minutes * 60
+        remainingSeconds = seconds
         scheduleTicker()
 
-        print("⏱️ SleepTimer: Started for \(minutes) minutes, ends at \(end)")
+        print("⏱️ SleepTimer: Started for \(seconds)s, ends at \(end)")
     }
 
     /// Cancel the timer and restore volume if mid-fade.

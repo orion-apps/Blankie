@@ -11,11 +11,7 @@ struct SleepTimerSheet: View {
     @ObservedObject private var sleepTimer = SleepTimer.shared
     @Environment(\.dismiss) private var dismiss
 
-    private let columns = [
-        GridItem(.flexible()),
-        GridItem(.flexible()),
-        GridItem(.flexible())
-    ]
+    @State private var customDuration: Date = Calendar.current.date(from: DateComponents(hour: 0, minute: 10)) ?? Date()
 
     var body: some View {
         NavigationView {
@@ -23,7 +19,7 @@ struct SleepTimerSheet: View {
                 if sleepTimer.isRunning {
                     activeTimerView
                 } else {
-                    presetGrid
+                    timerSetupView
                 }
             }
             .padding()
@@ -35,7 +31,72 @@ struct SleepTimerSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
+    }
+
+    private var timerSetupView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "moon.zzz")
+                .font(.system(size: 40))
+                .foregroundStyle(.secondary)
+                .padding(.top, 8)
+
+            Text("Stop playing after…")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 10) {
+                quickPickButton(minutes: 5)
+                quickPickButton(minutes: 30)
+                quickPickButton(minutes: 60)
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Custom")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                DatePicker(
+                    "",
+                    selection: $customDuration,
+                    displayedComponents: .hourAndMinute
+                )
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+                .clipped()
+
+                Button {
+                    sleepTimer.start(duration: customDurationSeconds)
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                } label: {
+                    Text("Start Custom Timer")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                }
+                .buttonStyle(.borderedProminent)
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func quickPickButton(minutes: Int) -> some View {
+        Button {
+            sleepTimer.start(minutes: minutes)
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        } label: {
+            Text(minutes == 60 ? "1 hr" : "\(minutes) min")
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(.systemGray6))
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Active Timer
@@ -74,50 +135,11 @@ struct SleepTimerSheet: View {
         }
     }
 
-    // MARK: - Preset Grid
-
-    private var presetGrid: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "moon.zzz")
-                .font(.system(size: 40))
-                .foregroundStyle(.secondary)
-                .padding(.top, 8)
-
-            Text("Stop playing after…")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(SleepTimer.presets, id: \.self) { minutes in
-                    Button {
-                        sleepTimer.start(minutes: minutes)
-                        let feedback = UIImpactFeedbackGenerator(style: .medium)
-                        feedback.impactOccurred()
-                    } label: {
-                        VStack(spacing: 4) {
-                            Text(formatDuration(minutes))
-                                .font(.title2.weight(.semibold))
-                            Text(minutes < 60 ? "min" : "")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 20)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(Color(.systemGray6))
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
-
-    private func formatDuration(_ minutes: Int) -> String {
-        if minutes < 60 { return "\(minutes)" }
-        let h = minutes / 60
-        let m = minutes % 60
-        return m == 0 ? "\(h)h" : "\(h):\(String(format: "%02d", m))"
+    private var customDurationSeconds: TimeInterval {
+        let components = Calendar.current.dateComponents([.hour, .minute], from: customDuration)
+        let hours = components.hour ?? 0
+        let minutes = components.minute ?? 0
+        let total = (hours * 3600) + (minutes * 60)
+        return TimeInterval(max(total, 60))
     }
 }
