@@ -208,6 +208,8 @@ struct LibraryView: View {
                                         }
                                     }
                                     .buttonStyle(.borderedProminent)
+                                    .accessibilityLabel("Download \(item.title)")
+                                    .accessibilityHint("Double tap to download this sound")
                                 case .queued, .downloading:
                                     Button("Cancel") {
                                         Task { @MainActor in
@@ -215,6 +217,7 @@ struct LibraryView: View {
                                         }
                                     }
                                     .buttonStyle(.bordered)
+                                    .accessibilityLabel("Cancel download of \(item.title)")
                                 case .failed:
                                     Button("Retry") {
                                         Task { @MainActor in
@@ -222,6 +225,7 @@ struct LibraryView: View {
                                         }
                                     }
                                     .buttonStyle(.borderedProminent)
+                                    .accessibilityLabel("Retry download of \(item.title)")
                                 case .completed:
                                     Button(audioManager.currentlyPlayingRemoteID == item.id ? "Stop" : "Play") {
                                         Task { @MainActor in
@@ -233,6 +237,7 @@ struct LibraryView: View {
                                         }
                                     }
                                     .buttonStyle(.borderedProminent)
+                                    .accessibilityLabel(audioManager.currentlyPlayingRemoteID == item.id ? "Stop playing \(item.title)" : "Play \(item.title)")
 
                                     Button("Remove") {
                                         Task { @MainActor in
@@ -240,6 +245,8 @@ struct LibraryView: View {
                                         }
                                     }
                                     .buttonStyle(.bordered)
+                                    .accessibilityLabel("Remove \(item.title)")
+                                    .accessibilityHint("Double tap to delete this downloaded sound")
                                 }
                             }
                         }

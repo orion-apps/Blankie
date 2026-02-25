@@ -108,6 +108,8 @@ struct SleepTimerSheet: View {
                 )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Set timer for \(minutes == 60 ? "1 hour" : "\(minutes) minutes")")
+        .accessibilityHint("Double tap to start sleep timer")
     }
 
     // MARK: - Active Timer
@@ -124,10 +126,12 @@ struct SleepTimerSheet: View {
                 .font(.system(size: 64, weight: .light, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(.primary)
+                .accessibilityLabel("\(sleepTimer.displayString) remaining")
 
             Text("remaining")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
 
             if let endTime = sleepTimer.endTimeString {
                 Text(endTime)
@@ -147,6 +151,8 @@ struct SleepTimerSheet: View {
                     .padding(.vertical, 12)
             }
             .buttonStyle(.bordered)
+            .accessibilityLabel("Add 5 minutes")
+            .accessibilityHint("Double tap to extend the sleep timer by 5 minutes")
 
             Button(role: .destructive) {
                 sleepTimer.cancel()
@@ -158,6 +164,8 @@ struct SleepTimerSheet: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(.red.opacity(0.8))
+            .accessibilityLabel("Cancel sleep timer")
+            .accessibilityHint("Double tap to cancel the active sleep timer")
 
             Spacer()
         }
