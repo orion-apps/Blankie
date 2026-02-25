@@ -52,6 +52,25 @@ struct LibraryView: View {
         }
     }
 
+    @ViewBuilder
+    private func statusBadge(_ state: AudioManager.RemoteDownloadState) -> some View {
+        let (text, color): (String, Color) = switch state {
+        case .notDownloaded: ("Available", .secondary)
+        case .queued: ("Queued", .orange)
+        case .downloading: ("Downloading", .blue)
+        case .completed: ("Downloaded", .green)
+        case .failed: ("Failed", .red)
+        }
+        Text(text)
+            .font(.caption2)
+            .fontWeight(.medium)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.15))
+            .foregroundStyle(color)
+            .clipShape(Capsule())
+    }
+
     var body: some View {
         List {
             Section("Catalog Status") {
@@ -91,12 +110,24 @@ struct LibraryView: View {
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(bundled) { sound in
-                        HStack {
+                        HStack(spacing: 12) {
+                            Image(systemName: sound.systemIconName)
+                                .font(.title2)
+                                .frame(width: 44, height: 44)
+                                .background(Color.accentColor.opacity(0.15))
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                                .foregroundStyle(Color.accentColor)
+
                             Text(sound.title)
                             Spacer()
                             Text("Built-in")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.accentColor.opacity(0.15))
+                                .foregroundStyle(Color.accentColor)
+                                .clipShape(Capsule())
                         }
                     }
                 }
@@ -117,17 +148,51 @@ struct LibraryView: View {
                     ForEach(remote, id: \.id) { item in
                         let status = audioManager.downloadStatus(for: item.id)
                         VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(item.title)
-                                    Text(item.sourceServerID)
-                                        .font(.caption2)
+                            HStack(spacing: 12) {
+                                // Thumbnail
+                                if let thumbURL = item.thumbnailURL {
+                                    AsyncImage(url: thumbURL) { phase in
+                                        switch phase {
+                                        case .success(let image):
+                                            image
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                        case .failure:
+                                            Image(systemName: "waveform")
+                                                .foregroundStyle(.secondary)
+                                        case .empty:
+                                            ProgressView()
+                                        @unknown default:
+                                            Image(systemName: "waveform")
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    .frame(width: 44, height: 44)
+                                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                                } else {
+                                    Image(systemName: "waveform")
+                                        .font(.title2)
+                                        .frame(width: 44, height: 44)
+                                        .background(Color.secondary.opacity(0.15))
+                                        .clipShape(RoundedRectangle(cornerRadius: 6))
                                         .foregroundStyle(.secondary)
                                 }
-                                Spacer()
-                                Text(statusLabel(status.state))
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.title)
+                                        .lineLimit(1)
+                                    HStack(spacing: 6) {
+                                        Text(item.sourceServerID)
+                                        if let duration = item.metadata["duration"] {
+                                            Text("•")
+                                            Text(duration)
+                                        }
+                                    }
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                statusBadge(status.state)
                             }
 
                             if status.state == .queued || status.state == .downloading {

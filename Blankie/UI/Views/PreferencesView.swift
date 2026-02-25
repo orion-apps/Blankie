@@ -165,6 +165,19 @@ struct PreferencesView: View {
             .font(.subheadline)
             .foregroundStyle(.secondary)
 
+          Picker(
+            "Auto-Refresh",
+            selection: Binding(
+              get: { globalSettings.catalogRefreshInterval },
+              set: { globalSettings.setCatalogRefreshInterval($0) }
+            )
+          ) {
+            ForEach(CatalogRefreshInterval.allCases) { interval in
+              Text(interval.rawValue).tag(interval)
+            }
+          }
+          .pickerStyle(.menu)
+
           Button("Refresh Content Catalog") {
             Task { await audioManager.refreshRemoteCatalog() }
           }
