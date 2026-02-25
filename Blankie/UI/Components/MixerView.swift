@@ -205,6 +205,8 @@ struct MixerView: View {
                 .accessibilityLabel("Master volume")
                 .accessibilityValue("\(Int(globalSettings.volume * 100)) percent")
             }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
     }
 
@@ -311,6 +313,8 @@ struct MixerView: View {
                                 }
                             ), in: 0...1)
                         }
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
 
                         HStack(spacing: 10) {
                             Text("Pan")
@@ -335,6 +339,8 @@ struct MixerView: View {
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                     }
                 }
             }
@@ -573,7 +579,7 @@ struct SoundMixerRow: View {
                 .accessibilityHint("Double tap to remove \(sound.title) from mixer")
             }
 
-            VStack(spacing: 6) {
+            VStack(spacing: 8) {
                 HStack(spacing: 10) {
                     Text("Vol")
                         .font(.caption)
@@ -589,6 +595,8 @@ struct SoundMixerRow: View {
                     .accessibilityLabel("\(sound.title) volume")
                     .accessibilityValue("\(Int(sound.volume * 100)) percent")
                 }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
 
                 HStack(spacing: 10) {
                     Text("Pan")
@@ -615,6 +623,8 @@ struct SoundMixerRow: View {
                         .foregroundStyle(.secondary)
                         .accessibilityHidden(true)
                 }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
             }
         }
         .padding(.vertical, 4)

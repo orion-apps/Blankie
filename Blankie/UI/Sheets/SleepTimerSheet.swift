@@ -11,8 +11,12 @@ struct SleepTimerSheet: View {
     @ObservedObject private var sleepTimer = SleepTimer.shared
     @Environment(\.dismiss) private var dismiss
 
-    @State private var customDuration: Date = Calendar.current.date(from: DateComponents(hour: 0, minute: 10)) ?? Date()
+    @State private var selectedHours: Int = 0
+    @State private var selectedMinutes: Int = 10
     private let lastCustomDurationKey = "SleepTimer_lastCustomDurationSeconds"
+
+    private let hourOptions = Array(0...4)
+    private let minuteOptions = Array(stride(from: 0, through: 55, by: 5))
 
     var body: some View {
         NavigationView {
@@ -36,9 +40,10 @@ struct SleepTimerSheet: View {
         .onAppear {
             let savedSeconds = Int(UserDefaults.standard.double(forKey: lastCustomDurationKey))
             if savedSeconds >= 60 {
-                let hours = (savedSeconds / 3600) % 24
-                let minutes = (savedSeconds % 3600) / 60
-                customDuration = Calendar.current.date(from: DateComponents(hour: hours, minute: minutes)) ?? customDuration
+                selectedHours = (savedSeconds / 3600) % 5
+                let mins = (savedSeconds % 3600) / 60
+                // Round to nearest 5-minute increment
+                selectedMinutes = (mins / 5) * 5
             }
         }
     }
@@ -65,20 +70,31 @@ struct SleepTimerSheet: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
 
-                DatePicker(
-                    "",
-                    selection: $customDuration,
-                    displayedComponents: .hourAndMinute
-                )
-                .datePickerStyle(.wheel)
-                .labelsHidden()
-                .frame(maxWidth: .infinity)
-                .clipped()
+                HStack(spacing: 0) {
+                    Picker("Hours", selection: $selectedHours) {
+                        ForEach(hourOptions, id: \.self) { hour in
+                            Text("\(hour) hr").tag(hour)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+
+                    Picker("Minutes", selection: $selectedMinutes) {
+                        ForEach(minuteOptions, id: \.self) { minute in
+                            Text("\(minute) min").tag(minute)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+                }
+                .frame(height: 150)
 
                 Button {
                     let seconds = customDurationSeconds
                     sleepTimer.start(duration: seconds)
-                    UserDefaults.standard.set(seconds, forKey: lastCustomDurationKey)
+                    UserDefaults.standard.set(Int(seconds), forKey: lastCustomDurationKey)
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 } label: {
                     Text("Start Custom Timer")
@@ -87,6 +103,7 @@ struct SleepTimerSheet: View {
                         .padding(.vertical, 14)
                 }
                 .buttonStyle(.borderedProminent)
+                .disabled(selectedHours == 0 && selectedMinutes == 0)
             }
 
             Spacer(minLength: 0)
@@ -172,10 +189,7 @@ struct SleepTimerSheet: View {
     }
 
     private var customDurationSeconds: TimeInterval {
-        let components = Calendar.current.dateComponents([.hour, .minute], from: customDuration)
-        let hours = components.hour ?? 0
-        let minutes = components.minute ?? 0
-        let total = (hours * 3600) + (minutes * 60)
+        let total = (selectedHours * 3600) + (selectedMinutes * 60)
         return TimeInterval(max(total, 60))
     }
 }

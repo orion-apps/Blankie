@@ -207,13 +207,6 @@ struct PreferencesView: View {
       }
       .navigationTitle("Settings")
       .navigationBarTitleDisplayMode(.inline)
-      .toolbar {
-        ToolbarItem(placement: .navigationBarTrailing) {
-          Button("Done") {
-            dismiss()
-          }
-        }
-      }
     }
     .onChange(of: globalSettings.needsRestartForLanguageChange) { _, newValue in
       if newValue {
