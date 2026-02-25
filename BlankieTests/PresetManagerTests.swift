@@ -108,12 +108,20 @@ final class PresetManagerTests: XCTestCase {
   }
 
   func testApplyPresetWarnsForMissingSoundFiles() async throws {
+    // Build preset with all required sounds PLUS a missing one
+    // (validate() requires all bundled sounds to be present)
+    var soundStates = await MainActor.run {
+      AudioManager.shared.sounds.map { sound in
+        PresetState(fileName: sound.fileName, isSelected: false, volume: 1.0)
+      }
+    }
+    // Add a sound that doesn't exist - this should trigger the warning
+    soundStates.append(PresetState(fileName: "definitely_missing_sound", isSelected: true, volume: 1.0))
+
     let preset = Preset(
       id: UUID(),
       name: "Broken",
-      soundStates: [
-        PresetState(fileName: "definitely_missing_sound", isSelected: true, volume: 1.0)
-      ],
+      soundStates: soundStates,
       isDefault: false
     )
 
@@ -121,7 +129,8 @@ final class PresetManagerTests: XCTestCase {
       try? presetManager.applyPreset(preset)
     }
 
-    try? await Task.sleep(nanoseconds: 250_000_000)
+    // applyPreset runs in an async Task - need to wait for it to complete
+    try? await Task.sleep(nanoseconds: 500_000_000)
 
     await MainActor.run {
       XCTAssertNotNil(presetManager.lastApplyWarning)

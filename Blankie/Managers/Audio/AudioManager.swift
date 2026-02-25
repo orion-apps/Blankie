@@ -240,6 +240,12 @@ class AudioManager: ObservableObject {
             fileExtension: fileExtension
           )
         }
+      
+      // After all sounds are loaded, defer volume refresh to apply anySolo logic properly
+      // (Must be async because we're still inside AudioManager.init() - accessing .shared would deadlock)
+      DispatchQueue.main.async { [weak self] in
+        self?.sounds.forEach { $0.refreshVolume() }
+      }
     } catch {
       print("❌ AudioManager: Failed to parse sounds.json: \(error)")
       ErrorReporter.shared.report(error)

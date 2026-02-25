@@ -130,9 +130,18 @@ open class Sound: ObservableObject, Identifiable {
 
   private func updateVolume() {
     let scaledVol = scaledVolume(volume)
-    let anySolo = AudioManager.shared.sounds.contains { $0.isSolo }
-    let isAudible = !isMuted && (!anySolo || isSolo)
-    let effectiveVolume = isAudible ? (scaledVol * Float(GlobalSettings.shared.volume)) : 0
+    
+    // During init, AudioManager.shared is not yet available - use simplified volume
+    let effectiveVolume: Float
+    if suppressMixerNotifications {
+      // During init: just use local state, skip anySolo check
+      let isAudible = !isMuted
+      effectiveVolume = isAudible ? (scaledVol * Float(GlobalSettings.shared.volume)) : 0
+    } else {
+      let anySolo = AudioManager.shared.sounds.contains { $0.isSolo }
+      let isAudible = !isMuted && (!anySolo || isSolo)
+      effectiveVolume = isAudible ? (scaledVol * Float(GlobalSettings.shared.volume)) : 0
+    }
 
     // Update volume immediately
     if player?.volume != effectiveVolume {
@@ -148,8 +157,13 @@ open class Sound: ObservableObject, Identifiable {
     }
   }
 
+  /// Public method to refresh volume (used after AudioManager finishes loading all sounds)
+  func refreshVolume() {
+    updateVolume()
+  }
+  
   private func notifyMixerStateChanged() {
-    AudioManager.shared.sounds.forEach { $0.updateVolume() }
+    AudioManager.shared.sounds.forEach { $0.refreshVolume() }
   }
 
   private func updatePresetState() {
