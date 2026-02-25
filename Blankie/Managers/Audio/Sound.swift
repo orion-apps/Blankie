@@ -66,14 +66,18 @@ open class Sound: ObservableObject, Identifiable {
   @Published var isMuted: Bool = false {
     didSet {
       UserDefaults.standard.set(isMuted, forKey: "\(fileName)_isMuted")
-      notifyMixerStateChanged()
+      if !suppressMixerNotifications {
+        notifyMixerStateChanged()
+      }
     }
   }
 
   @Published var isSolo: Bool = false {
     didSet {
       UserDefaults.standard.set(isSolo, forKey: "\(fileName)_isSolo")
-      notifyMixerStateChanged()
+      if !suppressMixerNotifications {
+        notifyMixerStateChanged()
+      }
     }
   }
 
@@ -88,12 +92,15 @@ open class Sound: ObservableObject, Identifiable {
   private var targetVolume: Float = 1.0
   private var globalSettingsObserver: AnyCancellable?
   private var isResetting = false
+  private var suppressMixerNotifications = false
 
   init(title: String, systemIconName: String, fileName: String, fileExtension: String = "mp3") {
     self.title = title
     self.systemIconName = systemIconName
     self.fileName = fileName
     self.fileExtension = fileExtension
+
+    suppressMixerNotifications = true
 
     // Restore saved volume
     self.volume = UserDefaults.standard.float(forKey: "\(fileName)_volume")
@@ -113,6 +120,8 @@ open class Sound: ObservableObject, Identifiable {
         self?.updateVolume()
       }
     loadSound()
+
+    suppressMixerNotifications = false
   }
 
   private func scaledVolume(_ linear: Float) -> Float {
