@@ -31,6 +31,8 @@ struct NowPlayingBar: View {
                     .foregroundStyle(.primary)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(audioManager.isGloballyPlaying ? "Pause" : "Play")
+            .accessibilityHint("Double tap to \(audioManager.isGloballyPlaying ? "pause" : "play") all sounds")
 
             // Info
             VStack(alignment: .leading, spacing: 2) {
@@ -60,6 +62,8 @@ struct NowPlayingBar: View {
             ), in: 0...1)
             .tint(.accentColor)
             .frame(width: 80)
+            .accessibilityLabel("Master volume")
+            .accessibilityValue("\(Int(globalSettings.volume * 100)) percent")
 
             // Sleep timer button
             Button {
@@ -80,6 +84,9 @@ struct NowPlayingBar: View {
                 .frame(width: 32, height: 32)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Sleep timer")
+            .accessibilityValue(sleepTimer.isRunning ? "\(sleepTimer.displayString) remaining" : "Off")
+            .accessibilityHint("Double tap to open sleep timer settings")
             .sheet(isPresented: $showSleepTimer) {
                 SleepTimerSheet()
             }
@@ -95,6 +102,8 @@ struct NowPlayingBar: View {
                     .background(Circle().fill(Color(.systemGray5)))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Full screen player")
+            .accessibilityHint("Double tap to open immersive player view")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)

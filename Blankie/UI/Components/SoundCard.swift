@@ -82,5 +82,10 @@ struct SoundCard: View {
                 showVolumeSlider = false
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(sound.title) sound")
+        .accessibilityValue(sound.isSelected ? "Playing, volume \(Int(sound.volume * 100)) percent" : "Stopped")
+        .accessibilityHint(sound.isSelected ? "Double tap to stop" : "Double tap to play")
+        .accessibilityAddTraits(sound.isSelected ? .isSelected : [])
     }
 }
