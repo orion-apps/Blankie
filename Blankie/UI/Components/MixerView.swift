@@ -139,6 +139,7 @@ struct MixerView: View {
                                         if isCurrent {
                                             Image(systemName: "checkmark.circle.fill")
                                                 .foregroundStyle(.green)
+                                                .accessibilityHidden(true)
                                         }
                                     }
 
@@ -154,6 +155,9 @@ struct MixerView: View {
                                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Play \(preset.name)")
+                            .accessibilityValue(isCurrent ? "Currently playing, \(localCount) bundled, \(remoteCount) remote sounds" : "\(localCount) bundled, \(remoteCount) remote sounds")
+                            .accessibilityHint("Double tap to play this blend")
                         }
                     }
                     .padding(.vertical, 4)
@@ -189,13 +193,17 @@ struct MixerView: View {
                 Image(systemName: "speaker.wave.2.fill")
                     .foregroundStyle(.secondary)
                     .frame(width: 24)
+                    .accessibilityHidden(true)
                 Text("Master")
                     .font(.subheadline.weight(.medium))
+                    .accessibilityHidden(true)
                 Slider(value: Binding(
                     get: { globalSettings.volume },
                     set: { newValue in Task { @MainActor in globalSettings.setVolume(newValue) } }
                 ), in: 0...1)
                 .tint(.accentColor)
+                .accessibilityLabel("Master volume")
+                .accessibilityValue("\(Int(globalSettings.volume * 100)) percent")
             }
         }
     }
@@ -494,6 +502,16 @@ struct SoundMixerRow: View {
     @ObservedObject var sound: Sound
     let singleSoloMode: Bool
 
+    private var panAccessibilityValue: String {
+        if sound.pan < -0.1 {
+            return "\(Int(abs(sound.pan) * 100)) percent left"
+        } else if sound.pan > 0.1 {
+            return "\(Int(sound.pan * 100)) percent right"
+        } else {
+            return "center"
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
@@ -512,6 +530,8 @@ struct SoundMixerRow: View {
                         .foregroundStyle(sound.isMuted ? .orange : .secondary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(sound.isMuted ? "Unmute" : "Mute")
+                .accessibilityHint("Double tap to \(sound.isMuted ? "unmute" : "mute") \(sound.title)")
 
                 Button {
                     if sound.isSolo {
@@ -529,6 +549,8 @@ struct SoundMixerRow: View {
                         .background(Circle().fill(sound.isSolo ? Color.accentColor.opacity(0.25) : Color.clear))
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(sound.isSolo ? "Solo active" : "Solo")
+                .accessibilityHint("Double tap to \(sound.isSolo ? "unsolo" : "solo") \(sound.title)")
 
                 Button {
                     sound.togglePlayback()
@@ -537,6 +559,8 @@ struct SoundMixerRow: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(sound.isPlaying ? "Pause" : "Play")
+                .accessibilityHint("Double tap to \(sound.isPlaying ? "pause" : "play") \(sound.title)")
 
                 Button {
                     sound.toggle()
@@ -545,6 +569,8 @@ struct SoundMixerRow: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Remove")
+                .accessibilityHint("Double tap to remove \(sound.title) from mixer")
             }
 
             VStack(spacing: 6) {
@@ -553,12 +579,15 @@ struct SoundMixerRow: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .frame(width: 28, alignment: .leading)
+                        .accessibilityHidden(true)
 
                     Slider(value: Binding(
                         get: { sound.volume },
                         set: { sound.volume = $0 }
                     ), in: 0...1)
                     .tint(.accentColor)
+                    .accessibilityLabel("\(sound.title) volume")
+                    .accessibilityValue("\(Int(sound.volume * 100)) percent")
                 }
 
                 HStack(spacing: 10) {
@@ -566,20 +595,25 @@ struct SoundMixerRow: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .frame(width: 28, alignment: .leading)
+                        .accessibilityHidden(true)
 
                     Text("L")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
 
                     Slider(value: Binding(
                         get: { sound.pan },
                         set: { sound.pan = $0 }
                     ), in: -1...1)
                     .tint(.accentColor)
+                    .accessibilityLabel("\(sound.title) pan")
+                    .accessibilityValue(panAccessibilityValue)
 
                     Text("R")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
                 }
             }
         }
