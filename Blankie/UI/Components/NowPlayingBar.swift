@@ -91,19 +91,19 @@ struct NowPlayingBar: View {
                 SleepTimerSheet()
             }
 
-            // Lock/Player button
+            // Expand to full player button
             Button {
                 showPlayer = true
             } label: {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 16))
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .frame(width: 32, height: 32)
                     .background(Circle().fill(Color(.systemGray5)))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Full screen player")
-            .accessibilityHint("Double tap to open immersive player view")
+            .accessibilityLabel("Expand player")
+            .accessibilityHint("Double tap to open full screen player")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)

@@ -16,7 +16,7 @@ struct SleepTimerSheet: View {
     private let lastCustomDurationKey = "SleepTimer_lastCustomDurationSeconds"
 
     private let hourOptions = Array(0...4)
-    private let minuteOptions = Array(stride(from: 0, through: 55, by: 5))
+    private let minuteOptions = Array(0...59)
 
     var body: some View {
         NavigationView {
@@ -40,10 +40,8 @@ struct SleepTimerSheet: View {
         .onAppear {
             let savedSeconds = Int(UserDefaults.standard.double(forKey: lastCustomDurationKey))
             if savedSeconds >= 60 {
-                selectedHours = (savedSeconds / 3600) % 5
-                let mins = (savedSeconds % 3600) / 60
-                // Round to nearest 5-minute increment
-                selectedMinutes = (mins / 5) * 5
+                selectedHours = min((savedSeconds / 3600), 4)
+                selectedMinutes = (savedSeconds % 3600) / 60
             }
         }
     }
