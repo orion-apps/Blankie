@@ -119,6 +119,8 @@ struct PlayerView: View {
                         .padding(12)
                         .background(Circle().fill(.ultraThinMaterial))
                 }
+                .accessibilityLabel(isLocked ? "Unlock controls" : "Close player")
+                .accessibilityHint(isLocked ? "Double tap to unlock controls" : "Double tap to close full screen player")
 
                 Spacer()
 
@@ -223,6 +225,8 @@ struct PlayerView: View {
                             .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(audioManager.isGloballyPlaying ? "Pause" : "Play")
+                    .accessibilityHint("Double tap to \(audioManager.isGloballyPlaying ? "pause" : "play") all sounds")
                 }
                 .padding(.bottom, 40)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
