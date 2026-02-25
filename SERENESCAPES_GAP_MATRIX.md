@@ -1,6 +1,6 @@
 # SereneScapes → Blankie Gap Matrix
 
-_Last updated: 2026-02-24_
+_Last updated: 2026-02-25_
 
 ## Legend
 - ✅ Done
@@ -8,18 +8,33 @@ _Last updated: 2026-02-24_
 - ❌ Missing
 - 🚧 In Progress
 
-| Area | SereneScapes Baseline | Blankie Current | Gap | Priority | Next Action |
-|---|---|---|---|---|---|
-| Sound loops playback | Single/multi playback, fade behavior | Core playback and global controls present | Minor parity checks remain | High | Validate edge-case playback parity tests |
-| Sleep timer | Timer + fade + UX controls | Implemented + polished | None (for current scope) | Done | Keep regression coverage |
-| Manifest/content model | Remote manifest + cache/fallback | ✅ Retry/backoff + timeout + transient classification + configurable refresh interval | QA validation only | High | Closed (monitor in QA) |
-| Image packs in player | Player visuals use image assets/packs | Gradient-based player in Blankie | No image-pack-driven player background parity | Critical | Add image-aware player background path (start now) |
-| Ken Burns in single-sound player | Present in SereneScapes | 🚧 Implemented foundation in Blankie player | Validate behavior against SereneScapes timing/feel | High | Tune animation presets + QA on device |
-| Mixer/blends workflow | Studio + saved blends + blend player | ✅ Added blend workflow controls + rename/delete + pan + mute/solo + per-track play/pause + missing-sound warnings + blend player cards + autosave semantics + studio workspace toggle + messaging polish | Minor UX polish only after device QA | High | Closed (monitor in QA) |
-| Library/download UX | Downloaded/available + server workflows | ✅ Added Library status + refresh + searchable lists, remote filtering (all/downloaded/not-downloaded), real remote file download/local storage, persisted task states, progress/retry/remove UI, local-file reconciliation, downloaded-remote playback controls, background URLSession pipeline + app wiring, preset/blend schema inclusion for selected remote tracks, per-remote volume/pan controls, multi-remote blend-card summary polish, thumbnail images, status badges, duration metadata | QA polish only | Medium | Run parity QA pass |
-| Built-in fallback mode | Reliable bundled content fallback | ✅ Mode/state surfaced across Home, Player, Mixer, and Settings | Minor copy polish only | High | Closed (monitor during QA) |
+| GAP | Area | Status | Notes |
+|-----|------|--------|-------|
+| GAP-01 | Image packs in player | ✅ Done | Player image-pack foundation added |
+| GAP-02 | Ken Burns in player | ✅ Done | Slideshow + animation tuning complete |
+| GAP-03 | Manifest/content model | ✅ Done | Retry/backoff, timeout, cache-policy tuning |
+| GAP-04 | Built-in fallback mode | ✅ Done | Mode/state surfaced across Home, Player, Mixer, Settings |
+| GAP-05 | Mixer/blends workflow | ✅ Done | Full blend workflow, pan/mute/solo, autosave, blend player |
+| GAP-06 | Library/download UX | ✅ Done | Download lifecycle, background URLSession, remote playback |
 
-## Immediate Ticket Queue
-1. **QA-01 (next): Device parity QA pass** (player visuals, mixer/blends, library/download background behavior)
-2. ~~**GAP-03**: Manifest hardening closeout~~ — ✅ Done (cache-policy tuning added)
-3. ~~**UX-Polish**: Library metadata presentation~~ — ✅ Done (thumbnails, badges, duration)
+## Additional Work Completed
+- ✅ VoiceOver accessibility (PlayerView, NowPlayingBar, SoundCard, MixerView, SleepTimerSheet, LibraryView)
+- ✅ AudioManager deadlock crash fix
+- ✅ Sleep timer (MVP + polish + tests)
+
+## Remaining Items
+
+### QA Pass (Device)
+- [ ] Ken Burns animation feel on physical device
+- [ ] Background transfer wake/resume behavior
+- [ ] Blend workflow click-path validation
+- [ ] Sound loops edge-case parity checks
+
+### Optional Hardening
+- [ ] Checksum/size validation after download
+- [ ] Deeper remote metadata (artwork/duration/category when available)
+
+## Merge Readiness
+- **Branch:** `migration-gap-01-player-images` (37 commits ahead of main)
+- **Tests:** 33/33 passing
+- **Recommendation:** Ready for PR #2 merge after device QA pass
