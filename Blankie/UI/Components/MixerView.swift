@@ -147,6 +147,9 @@ struct MixerView: View {
                                     Text("\(localCount) bundled • \(remoteCount) remote")
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
+                                        .contentTransition(.identity)
+                                        .animation(.none, value: localCount)
+                                        .animation(.none, value: remoteCount)
 
                                     Label("Play Blend", systemImage: "play.fill")
                                         .font(.caption)
