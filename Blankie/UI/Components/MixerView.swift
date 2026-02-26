@@ -57,18 +57,19 @@ struct MixerView: View {
                     Button("Done") { dismiss() }
                 }
             }
-            .alert("Save Preset", isPresented: $showSavePreset) {
-                TextField("Preset name", text: $presetName)
-                Button("Save") {
-                    if !presetName.isEmpty {
-                        presetManager.saveNewPreset(name: presetName)
-                        workflowMessage = "Preset saved"
-                        presetName = ""
-                    }
-                }
+            .alert("Save Blend", isPresented: $showSavePreset) {
+                TextField("Blend name", text: $presetName)
                 Button("Cancel", role: .cancel) {
                     presetName = ""
                 }
+                Button("Save") {
+                    if !presetName.isEmpty {
+                        presetManager.saveNewPreset(name: presetName)
+                        workflowMessage = "Blend saved"
+                        presetName = ""
+                    }
+                }
+                .keyboardShortcut(.defaultAction)
             }
             .alert("Blend Update", isPresented: Binding(
                 get: { workflowMessage != nil },
@@ -358,7 +359,7 @@ struct MixerView: View {
             Button {
                 showSavePreset = true
             } label: {
-                Label("Save as New Preset", systemImage: "plus.circle")
+                Label("Save as a New Blend", systemImage: "plus.circle")
             }
             .disabled(activeSounds.isEmpty)
 
@@ -506,10 +507,7 @@ struct MixerView: View {
         do {
             try presetManager.applyPreset(preset)
             audioManager.setPlaybackState(true)
-
-            let localCount = preset.soundStates.filter { $0.isSelected }.count
-            let remoteCount = preset.remoteStates.filter { $0.isSelected }.count
-            workflowMessage = "Playing blend: \(preset.name) (\(localCount) bundled, \(remoteCount) remote)"
+            // Don't show a dialog on success - just play the blend
         } catch {
             workflowMessage = "Could not play blend: \(preset.name)"
         }
