@@ -34,16 +34,19 @@ struct NowPlayingBar: View {
             .accessibilityLabel(audioManager.isGloballyPlaying ? "Pause" : "Play")
             .accessibilityHint("Double tap to \(audioManager.isGloballyPlaying ? "pause" : "play") all sounds")
 
-            // Info
+            // Info - tap to open mixer
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(activeSoundCount) sound\(activeSoundCount == 1 ? "" : "s") playing")
+                Text("\(activeSoundCount) sound\(activeSoundCount == 1 ? "" : "s")")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.primary)
+                    .lineLimit(1)
 
                 Text(PresetManager.shared.currentPreset?.name ?? "Custom Mix")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
+            .frame(minWidth: 60, maxWidth: 100, alignment: .leading)
             .onTapGesture {
                 showMixer = true
             }
