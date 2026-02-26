@@ -356,6 +356,13 @@ struct MixerView: View {
     private var blendWorkflowSection: some View {
         Section("Blend Workflow") {
             Button {
+                showSavePreset = true
+            } label: {
+                Label("Save as New Preset", systemImage: "plus.circle")
+            }
+            .disabled(activeSounds.isEmpty)
+
+            Button {
                 do {
                     try presetManager.startNewBlend()
                     workflowMessage = "Started a new blend from default state"
@@ -363,7 +370,7 @@ struct MixerView: View {
                     workflowMessage = "Could not start a new blend"
                 }
             } label: {
-                Label("New Blend", systemImage: "plus.square.on.square")
+                Label("Reset to New Blend", systemImage: "plus.square.on.square")
             }
 
             Button {
