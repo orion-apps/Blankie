@@ -25,7 +25,7 @@ struct MixerView: View {
 
     enum StudioMode: String, CaseIterable, Identifiable {
         case mixer = "Mixer"
-        case presets = "Presets"
+        case presets = "Blends"
         var id: String { rawValue }
     }
 
@@ -406,7 +406,7 @@ struct MixerView: View {
     }
 
     private var presetsSection: some View {
-        Section("Presets") {
+        Section("Saved Blends") {
             if let warning = presetManager.lastApplyWarning {
                 Label(warning, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
@@ -445,7 +445,7 @@ struct MixerView: View {
             let userPresets = presetManager.presets.filter { !$0.isDefault }
             if !userPresets.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("User Presets")
+                    Text("Your Blends")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     ForEach(userPresets) { preset in
