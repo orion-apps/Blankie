@@ -221,6 +221,12 @@ struct MixerView: View {
                 .foregroundStyle(.orange)
             }
 
+            Button {
+                dismiss()
+            } label: {
+                Label("Add More Sounds", systemImage: "plus.circle")
+            }
+
             if activeSounds.isEmpty {
                 Text("No sounds selected")
                     .foregroundStyle(.secondary)

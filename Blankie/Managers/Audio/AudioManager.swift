@@ -965,8 +965,9 @@ class AudioManager: ObservableObject {
       "🎵 AudioManager: Setting playback state to \(playing) - Current global state: \(self.isGloballyPlaying)"
     )
 
-    // Update state first
+    // Update state first - this should trigger @Published notification
     self.isGloballyPlaying = playing
+    print("🎵 AudioManager: isGloballyPlaying is now \(self.isGloballyPlaying)")
 
     // Then handle playback
     if playing {
