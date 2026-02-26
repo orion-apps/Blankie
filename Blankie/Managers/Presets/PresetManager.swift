@@ -26,6 +26,9 @@ class PresetManager: ObservableObject {
   @Published private(set) var lastApplyWarning: String?
   @Published private(set) var lastAutosaveAt: Date?
 
+  /// Only autosave when explicitly enabled (after loading/applying an existing blend)
+  private var autosaveEnabled: Bool = false
+
   private var cancellables = Set<AnyCancellable>()
   private var isInitialLoad = true
 
@@ -68,6 +71,9 @@ class PresetManager: ObservableObject {
     print("\n🎛️ PresetManager: --- Begin Creating New Preset ---")
     print("🎛️ PresetManager: Creating new preset '\(resolvedName)' from current state")
 
+    // Disable autosave while creating - we don't want to overwrite this new preset immediately
+    autosaveEnabled = false
+
     do {
       let newPreset = try createPresetFromCurrentState(name: resolvedName)
       presets.append(newPreset)
@@ -77,7 +83,10 @@ class PresetManager: ObservableObject {
       logPresetState(newPreset)
 
       savePresets()
-      try applyPreset(newPreset)
+      
+      // Set as current but keep autosave disabled until user explicitly updates
+      currentPreset = newPreset
+      
       print("🎛️ PresetManager: --- End Creating New Preset ---\n")
     } catch {
       handleError(error)
@@ -203,14 +212,11 @@ class PresetManager: ObservableObject {
 
   @MainActor
   func updateCurrentPresetState() {
-    // Don't update during initialization
+    // Don't update during initialization or if autosave is disabled
     if isInitializing { return }
+    if !autosaveEnabled { return }
 
     guard let preset = currentPreset else {
-      // Only log this once, not repeatedly
-      if !isInitializing {
-        print("❌ PresetManager: No current preset to update")
-      }
       return
     }
 
@@ -276,6 +282,10 @@ class PresetManager: ObservableObject {
     // Update current preset before any audio changes
     currentPreset = preset
     PresetStorage.saveLastActivePresetID(preset.id)
+
+    // Enable autosave for non-default presets when loading them
+    // (so changes are saved back to this preset)
+    autosaveEnabled = !preset.isDefault
 
     // Explicitly update Now Playing info with preset name
     AudioManager.shared.updateNowPlayingInfo(presetName: preset.name)
