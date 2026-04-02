@@ -23,6 +23,11 @@ class PresetManager: ObservableObject {
   @Published private(set) var hasCustomPresets: Bool = false
   @Published private(set) var isLoading: Bool = true
   @Published private(set) var error: Error?
+  @Published private(set) var lastApplyWarning: String?
+  @Published private(set) var lastAutosaveAt: Date?
+
+  /// Only autosave when explicitly enabled (after loading/applying an existing blend)
+  private var autosaveEnabled: Bool = false
 
   private var cancellables = Set<AnyCancellable>()
   private var isInitialLoad = true
@@ -61,11 +66,16 @@ class PresetManager: ObservableObject {
 
   @MainActor
   func saveNewPreset(name: String) {
+    let resolvedName = makeUniquePresetName(from: name)
+
     print("\n🎛️ PresetManager: --- Begin Creating New Preset ---")
-    print("🎛️ PresetManager: Creating new preset '\(name)' from current state")
+    print("🎛️ PresetManager: Creating new preset '\(resolvedName)' from current state")
+
+    // Disable autosave while creating - we don't want to overwrite this new preset immediately
+    autosaveEnabled = false
 
     do {
-      let newPreset = try createPresetFromCurrentState(name: name)
+      let newPreset = try createPresetFromCurrentState(name: resolvedName)
       presets.append(newPreset)
       updateCustomPresetStatus()
 
@@ -73,7 +83,10 @@ class PresetManager: ObservableObject {
       logPresetState(newPreset)
 
       savePresets()
-      try applyPreset(newPreset)
+      
+      // Set as current but keep autosave disabled until user explicitly updates
+      currentPreset = newPreset
+      
       print("🎛️ PresetManager: --- End Creating New Preset ---\n")
     } catch {
       handleError(error)
@@ -163,15 +176,47 @@ class PresetManager: ObservableObject {
   }
 
   @MainActor
+  func overwriteCurrentPresetFromCurrentState() -> Bool {
+    guard let currentPreset = currentPreset, !currentPreset.isDefault else {
+      return false
+    }
+
+    let newStates = AudioManager.shared.sounds.map { sound in
+      PresetState(fileName: sound.fileName, isSelected: sound.isSelected, volume: sound.volume)
+    }
+    let remoteStates = AudioManager.shared.selectedRemoteTrackIDs.sorted().map {
+      let mix = AudioManager.shared.remoteMixSettings(for: $0)
+      return RemotePresetState(remoteID: $0, isSelected: true, volume: mix.volume, pan: mix.pan)
+    }
+
+    guard let index = presets.firstIndex(where: { $0.id == currentPreset.id }) else {
+      return false
+    }
+
+    var updatedPreset = presets[index]
+    updatedPreset.soundStates = newStates
+    updatedPreset.remoteStates = remoteStates
+    presets[index] = updatedPreset
+    self.currentPreset = updatedPreset
+    savePresets()
+    return true
+  }
+
+  @MainActor
+  func startNewBlend() throws {
+    guard let defaultPreset = presets.first(where: { $0.isDefault }) else {
+      throw PresetError.invalidPreset
+    }
+    try applyPreset(defaultPreset)
+  }
+
+  @MainActor
   func updateCurrentPresetState() {
-    // Don't update during initialization
+    // Don't update during initialization or if autosave is disabled
     if isInitializing { return }
+    if !autosaveEnabled { return }
 
     guard let preset = currentPreset else {
-      // Only log this once, not repeatedly
-      if !isInitializing {
-        print("❌ PresetManager: No current preset to update")
-      }
       return
     }
 
@@ -183,16 +228,26 @@ class PresetManager: ObservableObject {
         volume: sound.volume
       )
     }
+    let newRemoteStates = AudioManager.shared.selectedRemoteTrackIDs.sorted().map {
+      let mix = AudioManager.shared.remoteMixSettings(for: $0)
+      return RemotePresetState(remoteID: $0, isSelected: true, volume: mix.volume, pan: mix.pan)
+    }
 
     // Only update if state has actually changed
-    if preset.soundStates != newStates {
+    if preset.soundStates != newStates || preset.remoteStates != newRemoteStates {
       var updatedPreset = preset
       updatedPreset.soundStates = newStates
+      updatedPreset.remoteStates = newRemoteStates
 
       if let index = presets.firstIndex(where: { $0.id == preset.id }) {
         presets[index] = updatedPreset
         currentPreset = updatedPreset
-        savePresets()
+
+        // Autosave semantics: only autosave loaded custom blends.
+        if !updatedPreset.isDefault {
+          savePresets()
+          lastAutosaveAt = Date()
+        }
       }
     }
   }
@@ -219,11 +274,18 @@ class PresetManager: ObservableObject {
     }
 
     let targetStates = preset.soundStates
+    let targetRemoteStates = preset.remoteStates
     let wasPlaying = AudioManager.shared.isGloballyPlaying
+    var missingSoundFiles: [String] = []
+    var missingRemoteIDs: [String] = []
 
     // Update current preset before any audio changes
     currentPreset = preset
     PresetStorage.saveLastActivePresetID(preset.id)
+
+    // Enable autosave for non-default presets when loading them
+    // (so changes are saved back to this preset)
+    autosaveEnabled = !preset.isDefault
 
     // Explicitly update Now Playing info with preset name
     AudioManager.shared.updateNowPlayingInfo(presetName: preset.name)
@@ -252,14 +314,36 @@ class PresetManager: ObservableObject {
             sound.isSelected = state.isSelected
             sound.volume = state.volume
           }
+        } else {
+          missingSoundFiles.append(state.fileName)
         }
       }
+
+      let remoteMissing = await AudioManager.shared.applyRemotePresetStates(targetRemoteStates)
+      missingRemoteIDs.append(contentsOf: remoteMissing)
 
       // Wait a bit for states to settle
       try? await Task.sleep(nanoseconds: 100_000_000)
 
+      if !missingSoundFiles.isEmpty || !missingRemoteIDs.isEmpty {
+        let localMissing = missingSoundFiles.sorted().joined(separator: ", ")
+        let remoteMissing = missingRemoteIDs.sorted().joined(separator: ", ")
+        let parts = [
+          localMissing.isEmpty ? nil : "local: \(localMissing)",
+          remoteMissing.isEmpty ? nil : "remote: \(remoteMissing)"
+        ].compactMap { $0 }
+
+        await MainActor.run {
+          self.lastApplyWarning = "Some items were unavailable and skipped (\(parts.joined(separator: " | ")))."
+        }
+      } else {
+        await MainActor.run {
+          self.lastApplyWarning = nil
+        }
+      }
+
       if wasPlaying || (isInitialLoad && !GlobalSettings.shared.alwaysStartPaused) {
-        if targetStates.contains(where: { $0.isSelected }) {
+        if targetStates.contains(where: { $0.isSelected }) || targetRemoteStates.contains(where: { $0.isSelected }) {
           AudioManager.shared.setGlobalPlaybackState(true)
         }
       }
@@ -269,6 +353,24 @@ class PresetManager: ObservableObject {
   }
 
   // MARK: - Private Methods
+
+  private func makeUniquePresetName(from rawName: String) -> String {
+    let trimmed = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+    let base = trimmed.isEmpty ? "Preset" : trimmed
+
+    if !presets.contains(where: { $0.name.caseInsensitiveCompare(base) == .orderedSame }) {
+      return base
+    }
+
+    var suffix = 2
+    while true {
+      let candidate = "\(base) \(suffix)"
+      if !presets.contains(where: { $0.name.caseInsensitiveCompare(candidate) == .orderedSame }) {
+        return candidate
+      }
+      suffix += 1
+    }
+  }
 
   private func handleError(_ error: Error) {
     print("❌ PresetManager: Error occurred: \(error.localizedDescription)")
@@ -332,6 +434,10 @@ class PresetManager: ObservableObject {
           isSelected: sound.isSelected,
           volume: sound.volume
         )
+      }
+      updatedPreset.remoteStates = AudioManager.shared.selectedRemoteTrackIDs.sorted().map {
+        let mix = AudioManager.shared.remoteMixSettings(for: $0)
+        return RemotePresetState(remoteID: $0, isSelected: true, volume: mix.volume, pan: mix.pan)
       }
       presets[index] = updatedPreset
       self.currentPreset = updatedPreset
@@ -397,6 +503,10 @@ class PresetManager: ObservableObject {
           isSelected: sound.isSelected,
           volume: sound.volume
         )
+      },
+      remoteStates: AudioManager.shared.selectedRemoteTrackIDs.sorted().map {
+        let mix = AudioManager.shared.remoteMixSettings(for: $0)
+        return RemotePresetState(remoteID: $0, isSelected: true, volume: mix.volume, pan: mix.pan)
       },
       isDefault: false
     )

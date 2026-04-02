@@ -13,6 +13,7 @@ struct HomeView: View {
     @State private var showMixer = false
     @State private var showPlayer = false
     @State private var showPreferences = false
+    @State private var showLibrary = false
 
     private let categories = ["All", "Nature", "Weather", "Urban", "Noise"]
 
@@ -40,6 +41,8 @@ struct HomeView: View {
             ZStack(alignment: .bottom) {
                 ScrollView {
                     VStack(spacing: 16) {
+                        contentModeBanner
+
                         // Filter pills
                         filterPills
 
@@ -68,7 +71,13 @@ struct HomeView: View {
             .animation(.spring(response: 0.4), value: hasActiveSounds)
             .navigationTitle("SereneScapes")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        showLibrary = true
+                    } label: {
+                        Image(systemName: "books.vertical")
+                    }
+
                     Button {
                         showPreferences = true
                     } label: {
@@ -84,6 +93,16 @@ struct HomeView: View {
             .fullScreenCover(isPresented: $showPlayer) {
                 PlayerView()
             }
+            .sheet(isPresented: $showLibrary) {
+                NavigationView {
+                    LibraryView()
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Done") { showLibrary = false }
+                            }
+                        }
+                }
+            }
             .sheet(isPresented: $showPreferences) {
                 NavigationView {
                     PreferencesView()
@@ -96,6 +115,22 @@ struct HomeView: View {
                 }
             }
         }
+    }
+
+    private var contentModeBanner: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(appState.contentMode == .hybrid ? Color.green : Color.orange)
+                .frame(width: 8, height: 8)
+
+            Text(appState.contentStatusMessage)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Capsule().fill(.ultraThinMaterial))
+        .padding(.horizontal, 16)
     }
 
     // MARK: - Filter Pills

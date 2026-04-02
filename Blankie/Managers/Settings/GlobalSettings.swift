@@ -15,6 +15,29 @@ private enum UserDefaultsKeys {
   static let appearance = "appearanceMode"
   static let accentColor = "customAccentColor"
   static let language = "languagePreference"
+  static let catalogRefreshInterval = "catalogRefreshInterval"
+}
+
+enum CatalogRefreshInterval: String, CaseIterable, Identifiable {
+  case minutes15 = "15 minutes"
+  case hour1 = "1 hour"
+  case hours4 = "4 hours"
+  case hours12 = "12 hours"
+  case day1 = "1 day"
+  case manual = "Manual only"
+
+  var id: String { rawValue }
+
+  var seconds: TimeInterval? {
+    switch self {
+    case .minutes15: return 15 * 60
+    case .hour1: return 60 * 60
+    case .hours4: return 4 * 60 * 60
+    case .hours12: return 12 * 60 * 60
+    case .day1: return 24 * 60 * 60
+    case .manual: return nil
+    }
+  }
 }
 
 class GlobalSettings: ObservableObject {
@@ -27,6 +50,7 @@ class GlobalSettings: ObservableObject {
   @Published private(set) var alwaysStartPaused: Bool
   @Published private(set) var language: Language
   @Published private(set) var availableLanguages: [Language] = []
+  @Published private(set) var catalogRefreshInterval: CatalogRefreshInterval
 
   private var observers = Set<AnyCancellable>()
   private var volumeDebounceTimer: Timer?
@@ -52,6 +76,14 @@ class GlobalSettings: ObservableObject {
 
     // First initialize language with default value
     language = Language.system
+
+    // Initialize catalog refresh interval
+    if let savedInterval = UserDefaults.standard.string(forKey: UserDefaultsKeys.catalogRefreshInterval),
+       let interval = CatalogRefreshInterval(rawValue: savedInterval) {
+      catalogRefreshInterval = interval
+    } else {
+      catalogRefreshInterval = .hour1
+    }
 
     // Then load available languages
     availableLanguages = Language.getAvailableLanguages()
@@ -93,6 +125,10 @@ class GlobalSettings: ObservableObject {
 
     _language.projectedValue.sink { newValue in
       UserDefaults.standard.setValue(newValue.code, forKey: UserDefaultsKeys.language)
+    }.store(in: &observers)
+
+    _catalogRefreshInterval.projectedValue.sink { newValue in
+      UserDefaults.standard.setValue(newValue.rawValue, forKey: UserDefaultsKeys.catalogRefreshInterval)
     }.store(in: &observers)
   }
 
@@ -151,6 +187,12 @@ class GlobalSettings: ObservableObject {
     logCurrentSettings()
   }
 
+  @MainActor
+  func setCatalogRefreshInterval(_ interval: CatalogRefreshInterval) {
+    catalogRefreshInterval = interval
+    logCurrentSettings()
+  }
+
   func logCurrentSettings() {
     print("\n⚙️ GlobalSettings: Current State")
     print("  - Volume: \(volume)")
@@ -159,5 +201,6 @@ class GlobalSettings: ObservableObject {
     print("  - Always Start Paused: \(alwaysStartPaused)")
     print("  - Language: \(language.code)")
     print("  - Available Languages: \(availableLanguages.map { $0.code }.joined(separator: ", "))")
+    print("  - Catalog Refresh Interval: \(catalogRefreshInterval.rawValue)")
   }
 }

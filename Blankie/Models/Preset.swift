@@ -11,11 +11,33 @@ struct Preset: Codable, Identifiable, Equatable {
   let id: UUID
   var name: String
   var soundStates: [PresetState]
+  var remoteStates: [RemotePresetState]
   let isDefault: Bool
+
+  enum CodingKeys: String, CodingKey {
+    case id, name, soundStates, remoteStates, isDefault
+  }
+
+  init(id: UUID, name: String, soundStates: [PresetState], remoteStates: [RemotePresetState] = [], isDefault: Bool) {
+    self.id = id
+    self.name = name
+    self.soundStates = soundStates
+    self.remoteStates = remoteStates
+    self.isDefault = isDefault
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decode(UUID.self, forKey: .id)
+    name = try container.decode(String.self, forKey: .name)
+    soundStates = try container.decode([PresetState].self, forKey: .soundStates)
+    remoteStates = try container.decodeIfPresent([RemotePresetState].self, forKey: .remoteStates) ?? []
+    isDefault = try container.decode(Bool.self, forKey: .isDefault)
+  }
 
   static func == (lhs: Preset, rhs: Preset) -> Bool {
     lhs.id == rhs.id && lhs.name == rhs.name && lhs.soundStates == rhs.soundStates
-      && lhs.isDefault == rhs.isDefault
+      && lhs.remoteStates == rhs.remoteStates && lhs.isDefault == rhs.isDefault
   }
 
   func validate() -> Bool {

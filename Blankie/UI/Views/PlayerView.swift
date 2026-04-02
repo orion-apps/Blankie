@@ -10,6 +10,7 @@ import SwiftUI
 struct PlayerView: View {
     @ObservedObject private var audioManager = AudioManager.shared
     @ObservedObject private var globalSettings = GlobalSettings.shared
+    @ObservedObject private var appState = AppState.shared
     @ObservedObject private var sleepTimer = SleepTimer.shared
 
     @Environment(\.dismiss) private var dismiss
@@ -19,6 +20,8 @@ struct PlayerView: View {
     @State private var showSleepTimerSheet = false
     @State private var controlsTimer: Timer?
     @State private var gradientPhase: CGFloat = 0
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var activeSounds: [Sound] {
         audioManager.sounds.filter { $0.isSelected }
@@ -69,11 +72,21 @@ struct PlayerView: View {
     // MARK: - Background
 
     private var animatedBackground: some View {
-        LinearGradient(
-            colors: blendedColors,
-            startPoint: gradientPhase == 0 ? .topLeading : .bottomTrailing,
-            endPoint: gradientPhase == 0 ? .bottomTrailing : .topLeading
-        )
+        ZStack {
+            if !availableBackgroundImageNames().isEmpty {
+                KenBurnsImageView(
+                    imageNames: availableBackgroundImageNames(),
+                    isActive: !showControls,
+                    reduceMotion: reduceMotion
+                )
+            } else {
+                LinearGradient(
+                    colors: blendedColors,
+                    startPoint: gradientPhase == 0 ? .topLeading : .bottomTrailing,
+                    endPoint: gradientPhase == 0 ? .bottomTrailing : .topLeading
+                )
+            }
+        }
         .overlay(
             RadialGradient(
                 colors: [.white.opacity(0.05), .clear],
@@ -82,6 +95,7 @@ struct PlayerView: View {
                 endRadius: 400
             )
         )
+        .overlay(Color.black.opacity(0.18))
     }
 
     // MARK: - Controls
@@ -105,6 +119,8 @@ struct PlayerView: View {
                         .padding(12)
                         .background(Circle().fill(.ultraThinMaterial))
                 }
+                .accessibilityLabel(isLocked ? "Unlock controls" : "Close player")
+                .accessibilityHint(isLocked ? "Double tap to unlock controls" : "Double tap to close full screen player")
 
                 Spacer()
 
@@ -168,6 +184,10 @@ struct PlayerView: View {
                 Text("\(activeSounds.count) sound\(activeSounds.count == 1 ? "" : "s")")
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.7))
+
+                Text(appState.contentMode == .hybrid ? "Built-in + Online Catalog" : "Built-in Sounds")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.72))
             }
 
             Spacer()
@@ -205,6 +225,8 @@ struct PlayerView: View {
                             .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(audioManager.isGloballyPlaying ? "Pause" : "Play")
+                    .accessibilityHint("Double tap to \(audioManager.isGloballyPlaying ? "pause" : "play") all sounds")
                 }
                 .padding(.bottom, 40)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -236,5 +258,28 @@ struct PlayerView: View {
                 showControls = false
             }
         }
+    }
+
+    private func availableBackgroundImageNames() -> [String] {
+        var names: [String] = []
+
+        for sound in activeSounds {
+            let base = sound.fileName
+            let options = ["\(base)_hero", "\(base)_wide", base]
+
+            for option in options {
+                let exists = Bundle.main.path(forResource: option, ofType: "png") != nil
+                    || Bundle.main.path(forResource: option, ofType: "jpg") != nil
+                    || Bundle.main.path(forResource: option, ofType: "jpeg") != nil
+                    || Bundle.main.path(forResource: option, ofType: "heic") != nil
+                    || Bundle.main.path(forResource: option, ofType: "webp") != nil
+
+                if exists && !names.contains(option) {
+                    names.append(option)
+                }
+            }
+        }
+
+        return names
     }
 }

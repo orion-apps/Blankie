@@ -9,13 +9,24 @@ private final class MockContentSession: ContentNetworkSession {
   }
 
   var mode: Mode
+  var scriptedModes: [Mode] = []
+  private(set) var callCount: Int = 0
 
   init(mode: Mode) {
     self.mode = mode
   }
 
   func data(from url: URL) async throws -> (Data, URLResponse) {
-    switch mode {
+    callCount += 1
+
+    let currentMode: Mode
+    if !scriptedModes.isEmpty {
+      currentMode = scriptedModes.removeFirst()
+    } else {
+      currentMode = mode
+    }
+
+    switch currentMode {
     case .success(let data):
       return (data, URLResponse(url: url, mimeType: "application/json", expectedContentLength: data.count, textEncodingName: nil))
     case .failure(let error):
@@ -141,6 +152,36 @@ final class ContentManagerTests: XCTestCase {
       XCTFail("Expected failure")
     } catch {
       XCTAssertEqual(error as? ContentManagerError, .invalidManifestNoCache)
+    }
+  }
+
+  func testRetriesTransientNetworkFailuresThenSucceeds() async throws {
+    let success = validManifestJSON(id: "retry-ok")
+    let session = MockContentSession(mode: .success(success))
+    session.scriptedModes = [
+      .failure(URLError(.timedOut)),
+      .failure(URLError(.networkConnectionLost)),
+      .success(success)
+    ]
+
+    let manager = makeManager(session: session)
+    let result = try await manager.fetchManifest()
+
+    XCTAssertEqual(result.source, .network)
+    XCTAssertEqual(result.manifest.servers.first?.identifier, "retry-ok")
+    XCTAssertEqual(session.callCount, 3)
+  }
+
+  func testDoesNotRetryNonTransientFailure() async {
+    let session = MockContentSession(mode: .failure(URLError(.badURL)))
+    let manager = makeManager(session: session)
+
+    do {
+      _ = try await manager.fetchManifest()
+      XCTFail("Expected failure")
+    } catch {
+      XCTAssertEqual(error as? ContentManagerError, .networkFailureNoCache)
+      XCTAssertEqual(session.callCount, 1)
     }
   }
 

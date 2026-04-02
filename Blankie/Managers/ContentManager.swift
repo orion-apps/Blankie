@@ -31,6 +31,17 @@ enum ContentManagerError: Error, Equatable {
   case cacheReadFailed
 }
 
+private extension URLError.Code {
+  var isTransientManifestFailure: Bool {
+    switch self {
+    case .timedOut, .cannotConnectToHost, .networkConnectionLost, .notConnectedToInternet, .dnsLookupFailed, .resourceUnavailable:
+      return true
+    default:
+      return false
+    }
+  }
+}
+
 final class ContentManager {
   static let defaultManifestURL = URL(string: "https://sounds.serenescapes.app/manifest.json")!
   static let defaultCacheTTL: TimeInterval = 3600
@@ -47,6 +58,8 @@ final class ContentManager {
   private let now: () -> Date
   private let decoder = JSONDecoder()
   private let encoder = JSONEncoder()
+  private let maxAttempts = 3
+  private let requestTimeout: TimeInterval = 8
 
   init(
     manifestURL: URL = ContentManager.defaultManifestURL,
@@ -71,26 +84,83 @@ final class ContentManager {
 
   func fetchManifest() async throws -> ManifestFetchResult {
     if let cached = try loadCachedManifest(), isFresh(cachedDate: cached.fetchedAt) {
+      emitTelemetry("Manifest loaded from fresh cache", level: .info)
       return ManifestFetchResult(manifest: cached.manifest, source: .cache, warning: nil)
     }
 
     do {
-      let (data, _) = try await session.data(from: manifestURL)
+      let data = try await fetchManifestDataWithRetry()
       let manifest = try decodeAndValidate(data: data)
       try saveCache(payload: data, fetchedAt: now())
+      print("[ContentManager] manifest fetch success source=network")
+      emitTelemetry("Manifest fetch success from network", level: .info)
       return ManifestFetchResult(manifest: manifest, source: .network, warning: nil)
     } catch let error as ManifestValidationError {
       if let cached = try loadCachedManifest() {
+        emitTelemetry("Manifest invalid; using stale cache fallback", level: .warning)
         return ManifestFetchResult(manifest: cached.manifest, source: .cache, warning: .staleCacheUsed)
       }
       _ = error
+      emitTelemetry("Manifest invalid and no cache available", level: .error)
       throw ContentManagerError.invalidManifestNoCache
     } catch {
       if let cached = try loadCachedManifest() {
+        emitTelemetry("Manifest network failure; using stale cache fallback", level: .warning)
         return ManifestFetchResult(manifest: cached.manifest, source: .cache, warning: .staleCacheUsed)
       }
+      emitTelemetry("Manifest network failure and no cache available", level: .error)
       throw ContentManagerError.networkFailureNoCache
     }
+  }
+
+  private func fetchManifestDataWithRetry() async throws -> Data {
+    var attempt = 0
+    var lastError: Error?
+
+    while attempt < maxAttempts {
+      attempt += 1
+      do {
+        let (data, _) = try await withTimeout(seconds: requestTimeout) { [self] in
+          try await self.session.data(from: self.manifestURL)
+        }
+        if attempt > 1 {
+          print("[ContentManager] manifest fetch recovered on attempt=\(attempt)")
+        }
+        return data
+      } catch {
+        lastError = error
+        let shouldRetry = isRetryable(error: error)
+        if shouldRetry && attempt < maxAttempts {
+          let backoffNs = UInt64(Double(250_000_000) * pow(2.0, Double(attempt - 1)))
+          try? await Task.sleep(nanoseconds: backoffNs)
+          continue
+        }
+        throw error
+      }
+    }
+
+    throw lastError ?? URLError(.unknown)
+  }
+
+  private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async throws -> T) async throws -> T {
+    try await withThrowingTaskGroup(of: T.self) { group in
+      group.addTask { try await operation() }
+      group.addTask {
+        try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+        throw URLError(.timedOut)
+      }
+
+      let result = try await group.next()!
+      group.cancelAll()
+      return result
+    }
+  }
+
+  private func isRetryable(error: Error) -> Bool {
+    if let urlError = error as? URLError {
+      return urlError.code.isTransientManifestFailure
+    }
+    return false
   }
 
   private func isFresh(cachedDate: Date) -> Bool {
@@ -122,6 +192,12 @@ final class ContentManager {
     let directory = cacheFileURL.deletingLastPathComponent()
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     try data.write(to: cacheFileURL, options: .atomic)
+  }
+
+  private func emitTelemetry(_ message: String, level: AppState.ContentTelemetryLevel) {
+    Task { @MainActor in
+      AppState.shared.appendTelemetry("[ContentManager] \(message)", level: level)
+    }
   }
 }
 

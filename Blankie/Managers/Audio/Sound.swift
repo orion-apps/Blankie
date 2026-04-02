@@ -52,19 +52,53 @@ open class Sound: ObservableObject, Identifiable {
     }
   }
 
+  @Published var pan: Float = 0.0 {
+    didSet {
+      guard pan >= -1.0 && pan <= 1.0 else {
+        pan = oldValue
+        return
+      }
+      player?.pan = pan
+      UserDefaults.standard.set(pan, forKey: "\(fileName)_pan")
+    }
+  }
+
+  @Published var isMuted: Bool = false {
+    didSet {
+      UserDefaults.standard.set(isMuted, forKey: "\(fileName)_isMuted")
+      if !suppressMixerNotifications {
+        notifyMixerStateChanged()
+      }
+    }
+  }
+
+  @Published var isSolo: Bool = false {
+    didSet {
+      UserDefaults.standard.set(isSolo, forKey: "\(fileName)_isSolo")
+      if !suppressMixerNotifications {
+        notifyMixerStateChanged()
+      }
+    }
+  }
+
   var player: AVAudioPlayer?
+
+  @Published private(set) var isPlaying: Bool = false
   private let fadeDuration: TimeInterval = 0.1
   private var fadeTimer: Timer?
   private var fadeStartVolume: Float = 0
   private var targetVolume: Float = 1.0
   private var globalSettingsObserver: AnyCancellable?
   private var isResetting = false
+  private var suppressMixerNotifications = false
 
   init(title: String, systemIconName: String, fileName: String, fileExtension: String = "mp3") {
     self.title = title
     self.systemIconName = systemIconName
     self.fileName = fileName
     self.fileExtension = fileExtension
+
+    suppressMixerNotifications = true
 
     // Restore saved volume
     self.volume = UserDefaults.standard.float(forKey: "\(fileName)_volume")
@@ -74,12 +108,18 @@ open class Sound: ObservableObject, Identifiable {
 
     // Restore selected state
     self.isSelected = UserDefaults.standard.bool(forKey: "\(fileName)_isSelected")
+    self.pan = UserDefaults.standard.float(forKey: "\(fileName)_pan")
+    self.isMuted = UserDefaults.standard.bool(forKey: "\(fileName)_isMuted")
+    self.isSolo = UserDefaults.standard.bool(forKey: "\(fileName)_isSolo")
+
     // Observe global volume changes
     globalSettingsObserver = GlobalSettings.shared.$volume
       .sink { [weak self] _ in
         self?.updateVolume()
       }
     loadSound()
+
+    suppressMixerNotifications = false
   }
 
   private func scaledVolume(_ linear: Float) -> Float {
@@ -88,7 +128,18 @@ open class Sound: ObservableObject, Identifiable {
 
   private func updateVolume() {
     let scaledVol = scaledVolume(volume)
-    let effectiveVolume = scaledVol * Float(GlobalSettings.shared.volume)
+    
+    // During init, AudioManager.shared is not yet available - use simplified volume
+    let effectiveVolume: Float
+    if suppressMixerNotifications {
+      // During init: just use local state, skip anySolo check
+      let isAudible = !isMuted
+      effectiveVolume = isAudible ? (scaledVol * Float(GlobalSettings.shared.volume)) : 0
+    } else {
+      let anySolo = AudioManager.shared.sounds.contains { $0.isSolo }
+      let isAudible = !isMuted && (!anySolo || isSolo)
+      effectiveVolume = isAudible ? (scaledVol * Float(GlobalSettings.shared.volume)) : 0
+    }
 
     // Update volume immediately
     if player?.volume != effectiveVolume {
@@ -102,6 +153,15 @@ open class Sound: ObservableObject, Identifiable {
         print("🔊 Sound: Updated '\(self.fileName)' volume to \(effectiveVolume)")
       }
     }
+  }
+
+  /// Public method to refresh volume (used after AudioManager finishes loading all sounds)
+  func refreshVolume() {
+    updateVolume()
+  }
+  
+  private func notifyMixerStateChanged() {
+    AudioManager.shared.sounds.forEach { $0.refreshVolume() }
   }
 
   private func updatePresetState() {
@@ -126,6 +186,7 @@ open class Sound: ObservableObject, Identifiable {
     do {
       player = try AVAudioPlayer(contentsOf: url)
       player?.volume = volume * Float(GlobalSettings.shared.volume)
+      player?.pan = pan
       player?.numberOfLoops = -1
       player?.enableRate = false  // Disable rate/pitch adjustment
       player?.prepareToPlay()
@@ -149,18 +210,27 @@ open class Sound: ObservableObject, Identifiable {
         + "global: \(GlobalSettings.shared.volume)"
     )
     player.play()
+    isPlaying = true
     completion?(.success(()))
   }
+  func togglePlayback() {
+    if isPlaying {
+      pause(immediate: true)
+    } else {
+      play()
+    }
+  }
+
   func pause(immediate: Bool = false) {
     print("🔊 Sound: Pausing '\(fileName)' (immediate: \(immediate))")
     if immediate {
       player?.pause()
       player?.volume = 0
-      // NO TOGGLE
+      isPlaying = false
       print("🔊 Sound: Immediate pause complete for '\(fileName)'")
     } else {
       fadeOut()
-      // NO TOGGLE
+      // isPlaying will be set to false when fadeOut completes
       print("🔊 Sound: Fade out initiated for '\(fileName)'")
     }
   }
@@ -195,6 +265,7 @@ open class Sound: ObservableObject, Identifiable {
         self.player?.volume = max(newVolume - (self.fadeStartVolume / 10), 0)
       } else {
         self.player?.pause()
+        self.isPlaying = false
         timer.invalidate()
       }
     }

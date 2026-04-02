@@ -31,17 +31,22 @@ struct NowPlayingBar: View {
                     .foregroundStyle(.primary)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(audioManager.isGloballyPlaying ? "Pause" : "Play")
+            .accessibilityHint("Double tap to \(audioManager.isGloballyPlaying ? "pause" : "play") all sounds")
 
-            // Info
+            // Info - tap to open mixer
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(activeSoundCount) sound\(activeSoundCount == 1 ? "" : "s") playing")
+                Text("\(activeSoundCount) sound\(activeSoundCount == 1 ? "" : "s")")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.primary)
+                    .lineLimit(1)
 
                 Text(PresetManager.shared.currentPreset?.name ?? "Custom Mix")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
+            .frame(minWidth: 60, maxWidth: 100, alignment: .leading)
             .onTapGesture {
                 showMixer = true
             }
@@ -60,6 +65,8 @@ struct NowPlayingBar: View {
             ), in: 0...1)
             .tint(.accentColor)
             .frame(width: 80)
+            .accessibilityLabel("Master volume")
+            .accessibilityValue("\(Int(globalSettings.volume * 100)) percent")
 
             // Sleep timer button
             Button {
@@ -80,21 +87,26 @@ struct NowPlayingBar: View {
                 .frame(width: 32, height: 32)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Sleep timer")
+            .accessibilityValue(sleepTimer.isRunning ? "\(sleepTimer.displayString) remaining" : "Off")
+            .accessibilityHint("Double tap to open sleep timer settings")
             .sheet(isPresented: $showSleepTimer) {
                 SleepTimerSheet()
             }
 
-            // Lock/Player button
+            // Expand to full player button
             Button {
                 showPlayer = true
             } label: {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 16))
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .frame(width: 32, height: 32)
                     .background(Circle().fill(Color(.systemGray5)))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Expand player")
+            .accessibilityHint("Double tap to open full screen player")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)

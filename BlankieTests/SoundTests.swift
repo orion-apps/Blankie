@@ -64,4 +64,18 @@ class SoundTests: XCTestCase {
     sound.volume = 0.5  // Should work
     XCTAssertEqual(sound.volume, 0.5, "Volume should change for valid values")
   }
+
+  func testPanAndMuteSoloState() {
+    XCTAssertEqual(sound.pan, 0.0, accuracy: 0.001)
+    XCTAssertFalse(sound.isMuted)
+    XCTAssertFalse(sound.isSolo)
+
+    sound.pan = 0.4
+    sound.isMuted = true
+    sound.isSolo = true
+
+    XCTAssertEqual(sound.pan, 0.4, accuracy: 0.001)
+    XCTAssertTrue(sound.isMuted)
+    XCTAssertTrue(sound.isSolo)
+  }
 }

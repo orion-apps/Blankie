@@ -64,6 +64,22 @@ final class AudioManagerTests: XCTestCase {
     XCTAssertEqual(audioManager.remoteSoundCatalog.first?.id, "remote-1")
   }
 
+  func testIngestRemoteMetadataUpdatesContentMode() async throws {
+    audioManager.ingestRemoteMetadata([])
+    XCTAssertEqual(AppState.shared.contentMode, .bundledOnly)
+
+    audioManager.ingestRemoteMetadata([
+      ServerSoundMetadata(
+        id: "remote-3",
+        title: "Harbor Wind",
+        remoteAudioURL: URL(string: "https://sounds.serenescapes.app/audio/harbor-wind.m4a")!,
+        sourceServerID: "primary"
+      )
+    ])
+
+    XCTAssertEqual(AppState.shared.contentMode, .hybrid)
+  }
+
   func testMergedLibraryEntriesCombinesBundledAndRemoteWithoutChangingPlaybackSounds() async throws {
     let bundled = [
       SoundData(

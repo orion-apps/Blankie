@@ -67,4 +67,74 @@ final class PresetManagerTests: XCTestCase {
       }
     }
   }
+
+  func testDuplicatePresetNameGetsUniqued() async throws {
+    await MainActor.run {
+      presetManager.saveNewPreset(name: "Evening")
+      presetManager.saveNewPreset(name: "Evening")
+
+      XCTAssertTrue(presetManager.presets.contains { $0.name == "Evening" })
+      XCTAssertTrue(presetManager.presets.contains { $0.name == "Evening 2" })
+    }
+  }
+
+  func testOverwriteCurrentPresetFromCurrentState() async throws {
+    await MainActor.run {
+      presetManager.saveNewPreset(name: "Mutable")
+      guard let created = presetManager.presets.first(where: { $0.name == "Mutable" }) else {
+        XCTFail("Missing created preset")
+        return
+      }
+
+      try? presetManager.applyPreset(created)
+
+      if let firstSound = AudioManager.shared.sounds.first {
+        firstSound.isSelected = true
+        firstSound.volume = 0.42
+      }
+
+      let didUpdate = presetManager.overwriteCurrentPresetFromCurrentState()
+      XCTAssertTrue(didUpdate)
+
+      guard let updated = presetManager.currentPreset,
+            let firstState = updated.soundStates.first else {
+        XCTFail("Missing updated preset state")
+        return
+      }
+
+      XCTAssertEqual(firstState.isSelected, true)
+      XCTAssertEqual(firstState.volume, 0.42, accuracy: 0.001)
+    }
+  }
+
+  func testApplyPresetWarnsForMissingSoundFiles() async throws {
+    // Build preset with all required sounds PLUS a missing one
+    // (validate() requires all bundled sounds to be present)
+    var soundStates = await MainActor.run {
+      AudioManager.shared.sounds.map { sound in
+        PresetState(fileName: sound.fileName, isSelected: false, volume: 1.0)
+      }
+    }
+    // Add a sound that doesn't exist - this should trigger the warning
+    soundStates.append(PresetState(fileName: "definitely_missing_sound", isSelected: true, volume: 1.0))
+
+    let preset = Preset(
+      id: UUID(),
+      name: "Broken",
+      soundStates: soundStates,
+      isDefault: false
+    )
+
+    await MainActor.run {
+      try? presetManager.applyPreset(preset)
+    }
+
+    // applyPreset runs in an async Task - need to wait for it to complete
+    try? await Task.sleep(nanoseconds: 500_000_000)
+
+    await MainActor.run {
+      XCTAssertNotNil(presetManager.lastApplyWarning)
+      XCTAssertTrue(presetManager.lastApplyWarning?.contains("definitely_missing_sound") == true)
+    }
+  }
 }
